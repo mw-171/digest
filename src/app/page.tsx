@@ -1,69 +1,158 @@
-import Image from "next/image";
+import { DayPicker } from "./day-picker";
+import { authorizedClient, isAuthError, isConfigured, redirectUri } from "@/lib/google";
+import { fetchDigest, isValidDay, toDayString, type Digest } from "@/lib/gmail";
 
-export default function Home() {
+const ERRORS: Record<string, string> = {
+  access_denied: "Consent was declined.",
+  bad_state: "The sign-in state didn't match. Try again.",
+  missing_code: "Google didn't return an authorization code.",
+  no_refresh_token: "Google didn't return a refresh token. Try again.",
+  token_exchange_failed: "Could not exchange the code for a token. Check the console.",
+};
+
+function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="flex flex-1 justify-center bg-bg-weak-50 px-6 py-12">
+      <main className="w-full max-w-2xl">{children}</main>
     </div>
+  );
+}
+
+function time(iso: string) {
+  return new Date(iso).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function MessageList({ digest }: { digest: Digest }) {
+  if (digest.messages.length === 0) {
+    return <p className="py-12 text-center text-text-soft-400">No mail on this day.</p>;
+  }
+
+  return (
+    <ul className="divide-y divide-stroke-soft-200 rounded-10 border border-stroke-soft-200 bg-bg-white-0">
+      {digest.messages.map((message) => (
+        <li key={message.id} className="flex gap-3 px-4 py-3">
+          <span className="w-16 shrink-0 pt-0.5 text-xs text-text-soft-400">
+            {time(message.receivedAt)}
+          </span>
+          <div className="min-w-0">
+            <p className="flex items-baseline gap-2 text-sm">
+              <span
+                className={
+                  message.unread
+                    ? "font-medium text-text-strong-950"
+                    : "text-text-sub-600"
+                }
+              >
+                {message.from}
+              </span>
+              {message.unread && (
+                <span className="text-[10px] uppercase tracking-wide text-primary-base">
+                  unread
+                </span>
+              )}
+            </p>
+            <p className="truncate text-sm text-text-strong-950">{message.subject}</p>
+            <p className="line-clamp-2 text-sm text-text-soft-400">{message.snippet}</p>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export default async function Home({ searchParams }: PageProps<"/">) {
+  const params = await searchParams;
+  const today = toDayString();
+  const requested = typeof params.date === "string" ? params.date : today;
+  const day = isValidDay(requested) ? requested : today;
+  const errorParam = typeof params.error === "string" ? params.error : null;
+
+  if (!isConfigured()) {
+    return (
+      <Shell>
+        <h1 className="text-xl font-semibold text-text-strong-950">Daily Digest</h1>
+        <p className="mt-3 text-sm text-text-sub-600">
+          Add <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code> to{" "}
+          <code>.env</code>, then restart the dev server. The redirect URI registered in
+          the Google Cloud console must be <code>{redirectUri()}</code>.
+        </p>
+      </Shell>
+    );
+  }
+
+  const auth = await authorizedClient();
+
+  if (!auth) {
+    return (
+      <Shell>
+        <h1 className="text-xl font-semibold text-text-strong-950">Daily Digest</h1>
+        <p className="mt-3 text-sm text-text-sub-600">
+          Connect your Gmail account to read a day at a time.
+        </p>
+        {errorParam && (
+          <p className="mt-3 text-sm text-error-base">
+            {ERRORS[errorParam] ?? errorParam}
+          </p>
+        )}
+        <a
+          href="/api/auth/google"
+          className="mt-6 inline-block rounded-10 bg-bg-strong-950 px-4 py-2 text-sm text-text-white-0"
+        >
+          Connect Gmail
+        </a>
+      </Shell>
+    );
+  }
+
+  let digest: Digest | null = null;
+  let fetchError: string | null = null;
+  let needsReconnect = false;
+
+  try {
+    digest = await fetchDigest(auth, day);
+  } catch (error) {
+    console.error("Gmail fetch failed", error);
+    needsReconnect = isAuthError(error);
+    fetchError = error instanceof Error ? error.message : String(error);
+  }
+
+  return (
+    <Shell>
+      <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-text-strong-950">Daily Digest</h1>
+          {digest && (
+            <p className="text-sm text-text-soft-400">
+              {digest.messages.length} message
+              {digest.messages.length === 1 ? "" : "s"}
+              {digest.truncated && " (first 100)"}
+            </p>
+          )}
+        </div>
+        <DayPicker day={day} today={today} />
+      </header>
+
+      {fetchError ? (
+        <div className="rounded-10 border border-stroke-soft-200 bg-bg-white-0 p-4 text-sm">
+          <p className="text-error-base">{fetchError}</p>
+          {needsReconnect && (
+            <a href="/api/auth/google" className="mt-2 inline-block underline">
+              Reconnect Gmail
+            </a>
+          )}
+        </div>
+      ) : (
+        digest && <MessageList digest={digest} />
+      )}
+
+      <footer className="mt-6 text-xs text-text-soft-400">
+        <a href="/api/auth/logout" className="underline">
+          Disconnect
+        </a>
+      </footer>
+    </Shell>
   );
 }
