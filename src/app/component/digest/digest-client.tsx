@@ -1,0 +1,160 @@
+"use client";
+
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import * as React from "react";
+
+import { Toggle } from "./toggle";
+import { BandsList, Footer, HeaderFrame, RecapLine, Shell } from "./digest-screen";
+import {
+  BandsSkeleton,
+  RecapSkeleton,
+  WeekStripSkeleton,
+} from "./skeletons";
+import { WeekStrip } from "./week-strip";
+import * as Button from "@/app/component/ui/button";
+import { aiCookieValue, bulkCookieValue } from "@/lib/preferences";
+import {
+  dayQuery,
+  previousDay,
+  weekQuery,
+  type DigestOptions,
+} from "@/lib/digest-query";
+
+function ErrorPanel({ error }: { error: unknown }) {
+  const message = error instanceof Error ? error.message : String(error);
+  const reconnect =
+    typeof error === "object" && error !== null && "reconnect" in error
+      ? Boolean((error as { reconnect: unknown }).reconnect)
+      : false;
+
+  return (
+    <div className="mx-auto flex w-full max-w-lg flex-col px-8 py-12">
+      <p className="text-paragraph-sm text-error-base">{message}</p>
+      {reconnect && (
+        <Button.Root asChild variant="primary" mode="filled" className="mt-5">
+          <a href="/api/auth/google">Reconnect Gmail</a>
+        </Button.Root>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The digest, driven by the client query cache.
+ *
+ * Picking a day never round-trips the router: the day is component state, the
+ * URL is kept in step with `replaceState`, and both queries answer from cache
+ * when that day has already been triaged.
+ */
+export function DigestClient({
+  initialDay,
+  today,
+  initialAi,
+  initialBulk,
+}: {
+  initialDay: string;
+  today: string;
+  initialAi: boolean;
+  initialBulk: boolean;
+}) {
+  const [day, setDay] = React.useState(initialDay);
+  const [options, setOptions] = React.useState<DigestOptions>({
+    useAi: initialAi,
+    includeBulk: initialBulk,
+  });
+  const queryClient = useQueryClient();
+
+  const dayResult = useQuery(dayQuery(day, options));
+  const weekResult = useQuery(weekQuery(day, options));
+
+  const select = React.useCallback((next: string) => {
+    if (next > today) return;
+    setDay(next);
+    window.history.pushState(null, "", `/?date=${next}`);
+  }, [today]);
+
+  // Keep the browser's back button working with the pushed URLs.
+  React.useEffect(() => {
+    const onPop = () => {
+      const param = new URLSearchParams(window.location.search).get("date");
+      setDay(param ?? today);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [today]);
+
+  // People page backwards through a digest, so warm exactly one day back —
+  // enough to make the next tap instant without paying Claude for days nobody
+  // opens. Waits for the current day so the two never compete.
+  React.useEffect(() => {
+    if (!dayResult.isSuccess) return;
+    const target = previousDay(day);
+    queryClient.prefetchQuery(dayQuery(target, options));
+  }, [day, dayResult.isSuccess, options, queryClient]);
+
+  return (
+    <Shell>
+      <HeaderFrame
+        day={day}
+        onSelectDay={select}
+        bars={
+          weekResult.data ? (
+            <WeekStrip week={weekResult.data} onSelect={select} />
+          ) : (
+            <WeekStripSkeleton />
+          )
+        }
+        recap={
+          dayResult.data ? (
+            <RecapLine text={dayResult.data.recap} />
+          ) : (
+            <RecapSkeleton />
+          )
+        }
+      />
+
+      {dayResult.isError ? (
+        <ErrorPanel error={dayResult.error} />
+      ) : dayResult.data ? (
+        <BandsList
+          digest={dayResult.data}
+          onIncludeBulk={
+            options.includeBulk
+              ? undefined
+              : () => {
+                  document.cookie = bulkCookieValue(true);
+                  setOptions((current) => ({ ...current, includeBulk: true }));
+                }
+          }
+        />
+      ) : (
+        <BandsSkeleton />
+      )}
+
+      <Footer
+        source={dayResult.data?.source}
+        toggle={
+          <>
+            <Toggle
+              value={options.useAi}
+              label={`AI triage ${options.useAi ? "on" : "off"}`}
+              onChange={(next) => {
+                // The cookie is what stops the *next* page load calling out.
+                document.cookie = aiCookieValue(next);
+                setOptions((current) => ({ ...current, useAi: next }));
+              }}
+            />
+            <Toggle
+              value={options.includeBulk}
+              label="Promotions & forums"
+              onChange={(next) => {
+                document.cookie = bulkCookieValue(next);
+                setOptions((current) => ({ ...current, includeBulk: next }));
+              }}
+            />
+          </>
+        }
+      />
+    </Shell>
+  );
+}
