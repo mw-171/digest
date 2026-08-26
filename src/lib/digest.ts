@@ -1,7 +1,12 @@
 import { cache } from "react";
 
 import { toDayString, weekWindow } from "@/lib/day";
-import { fetchInsights, TRIAGE_BANDS, type Band, type Insight } from "@/lib/digest-ai";
+import {
+  fetchInsights,
+  TRIAGE_BANDS,
+  type Band,
+  type Insight,
+} from "@/lib/digest-ai";
 import {
   fetchAccountEmail,
   fetchDay,
@@ -44,7 +49,7 @@ export type DayDigest = {
 export type Digest = DayDigest & { week: WeekDay[] };
 
 const BAND_TITLES: Record<Band, string> = {
-  needs: "NEEDS YOU",
+  needs: "TOP OF MIND",
   fyi: "FYI",
   noise: "NOISE",
 };
@@ -65,32 +70,33 @@ async function client() {
  * `cache` dedupes within a render, so several components may call these freely.
  */
 export const getWeek = cache(async (day: string): Promise<WeekDay[]> => {
-    const today = toDayString();
-    const days = weekWindow(day, today);
-    const volumes = await fetchVolumes(await client(), days);
-    const busiest = Math.max(...volumes.map((v) => v.count), 1);
+  const today = toDayString();
+  const days = weekWindow(day, today);
+  const volumes = await fetchVolumes(await client(), days);
+  const busiest = Math.max(...volumes.map((v) => v.count), 1);
 
-    return days.map((d) => {
-      const count = volumes.find((v) => v.day === d)?.count ?? 0;
-      const date = new Date(`${d}T00:00:00`);
+  return days.map((d) => {
+    const count = volumes.find((v) => v.day === d)?.count ?? 0;
+    const date = new Date(`${d}T00:00:00`);
 
-      return {
-        day: d,
-        weekday: date.toLocaleDateString(undefined, { weekday: "narrow" }),
-        date: String(date.getDate()),
-        count,
-        height: count
-          ? Math.max(BAR_MIN, Math.round((count / busiest) * BAR_MAX))
-          : BAR_MIN,
-        selected: d === day,
-        isToday: d === today,
-      };
-    });
-  },
-);
+    return {
+      day: d,
+      weekday: date.toLocaleDateString(undefined, { weekday: "narrow" }),
+      date: String(date.getDate()),
+      count,
+      height: count
+        ? Math.max(BAR_MIN, Math.round((count / busiest) * BAR_MAX))
+        : BAR_MIN,
+      selected: d === day,
+      isToday: d === today,
+    };
+  });
+});
 
 /** The connected address, needed to read your own reply off an invitation. */
-const reader = cache(async () => fetchAccountEmail(await client()).catch(() => ""));
+const reader = cache(async () =>
+  fetchAccountEmail(await client()).catch(() => ""),
+);
 
 export const getDay = cache(
   async (day: string, useAi = true): Promise<DayDigest> => {
@@ -149,3 +155,4 @@ export const getDay = cache(
     };
   },
 );
+

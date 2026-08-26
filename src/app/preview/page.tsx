@@ -2,7 +2,10 @@
 // be checked without a Gmail session. Safe to delete.
 
 import { DigestScreen, Shell } from "@/app/component/digest/digest-screen";
-import { DigestSkeleton, MessageSkeleton } from "@/app/component/digest/skeletons";
+import {
+  DigestSkeleton,
+  MessageSkeleton,
+} from "@/app/component/digest/skeletons";
 import type { Digest, DigestItem } from "@/lib/digest";
 import type { Band } from "@/lib/digest-ai";
 
@@ -37,7 +40,6 @@ function item(
   };
 }
 
-
 const digest: Digest = {
   day: "2026-08-20",
   recap: "Two things need signing off before Friday. Everything else can wait.",
@@ -47,15 +49,66 @@ const digest: Digest = {
   bands: [
     {
       key: "needs",
-      title: "NEEDS YOU",
+      title: "TOP OF MIND",
       items: [
-        item("1", "Priya Raghavan", "Approve two contract clauses", "2026-08-21", "needs", 8),
-        item("2", "Marcus Lin", "Review the onboarding flow", "2026-08-20", "needs", 9),
+        item(
+          "1",
+          "Priya Raghavan",
+          "Approve two contract clauses",
+          "2026-08-21",
+          "needs",
+          8,
+        ),
+        item(
+          "2",
+          "Marcus Lin",
+          "Review the onboarding flow",
+          "2026-08-20",
+          "needs",
+          9,
+        ),
         // Same conversation, three messages: one card, not three.
-        item("2a", "Marcus Lin", "Re: Review the onboarding flow", "", "needs", 9, null, "none", "t-onboarding"),
-        item("2b", "Priya Raghavan", "Re: Review the onboarding flow", "", "needs", 9, null, "none", "t-onboarding"),
-        item("2c", "Devi Sharma", "Review the onboarding flow", "", "needs", 8, null, "none", "t-onboarding"),
-        item("3", "Devi Sharma", "Reply to an intro with Devi", "", "needs", 10),
+        item(
+          "2a",
+          "Marcus Lin",
+          "Re: Review the onboarding flow",
+          "",
+          "needs",
+          9,
+          null,
+          "none",
+          "t-onboarding",
+        ),
+        item(
+          "2b",
+          "Priya Raghavan",
+          "Re: Review the onboarding flow",
+          "",
+          "needs",
+          9,
+          null,
+          "none",
+          "t-onboarding",
+        ),
+        item(
+          "2c",
+          "Devi Sharma",
+          "Review the onboarding flow",
+          "",
+          "needs",
+          8,
+          null,
+          "none",
+          "t-onboarding",
+        ),
+        item(
+          "3",
+          "Devi Sharma",
+          "Reply to an intro with Devi",
+          "",
+          "needs",
+          10,
+        ),
         // A deadline further out: the one case that still says "by".
         item("13", "Ravi Menon", "Sign the renewal", "2026-08-26", "needs", 12),
         // An unanswered invitation: same tier, its own card.
@@ -77,7 +130,16 @@ const digest: Digest = {
       items: [
         item("4", "Stripe", "$4,182 payout on its way", "", "fyi", 6),
         // An event date, not a deadline: it reads "3 Sept", never "by 3 Sept".
-        item("5", "Foster Dental", "Dentist appointment", "2026-09-03", "fyi", 11, null, "event"),
+        item(
+          "5",
+          "Foster Dental",
+          "Dentist appointment",
+          "2026-09-03",
+          "fyi",
+          11,
+          null,
+          "event",
+        ),
         item("6", "Ramp", "Spend ran $212 over baseline", "", "fyi", 13),
         // Answered, so it needs nothing — but still an invite card.
         item("12", "Marcus Lin", "Design review", "", "fyi", 12, {
@@ -141,19 +203,119 @@ const digest: Digest = {
         "notifications@github.com",
       ),
     ),
-    item("li-1", "LinkedIn", "Nine new job matches", "", "noise", 16, null, "none", "li-1", "jobs@linkedin.com"),
-    item("li-2", "LinkedIn", "Priya viewed your profile", "", "noise", 17, null, "none", "li-2", "notify@e.linkedin.com"),
-    item("nl-1", "The Browser", "Five essays for the weekend", "", "noise", 15, null, "none", "nl-1", "hi@thebrowser.com"),
-    item("nl-2", "Linear", "Weekly workspace digest", "", "noise", 7, null, "none", "nl-2", "digest@linear.app"),
+    item(
+      "li-1",
+      "LinkedIn",
+      "Nine new job matches",
+      "",
+      "noise",
+      16,
+      null,
+      "none",
+      "li-1",
+      "jobs@linkedin.com",
+    ),
+    item(
+      "li-2",
+      "LinkedIn",
+      "Priya viewed your profile",
+      "",
+      "noise",
+      17,
+      null,
+      "none",
+      "li-2",
+      "notify@e.linkedin.com",
+    ),
+    item(
+      "nl-1",
+      "The Browser",
+      "Five essays for the weekend",
+      "",
+      "noise",
+      15,
+      null,
+      "none",
+      "nl-1",
+      "hi@thebrowser.com",
+    ),
+    item(
+      "nl-2",
+      "Linear",
+      "Weekly workspace digest",
+      "",
+      "noise",
+      7,
+      null,
+      "none",
+      "nl-2",
+      "digest@linear.app",
+    ),
   ],
   week: [
-    { day: "2026-08-17", weekday: "M", date: "17", count: 12, height: 26, selected: false, isToday: false },
-    { day: "2026-08-18", weekday: "T", date: "18", count: 21, height: 44, selected: false, isToday: false },
-    { day: "2026-08-19", weekday: "W", date: "19", count: 16, height: 34, selected: false, isToday: false },
-    { day: "2026-08-20", weekday: "T", date: "20", count: 23, height: 48, selected: true, isToday: true },
-    { day: "2026-08-21", weekday: "F", date: "21", count: 9, height: 19, selected: false, isToday: false },
-    { day: "2026-08-22", weekday: "S", date: "22", count: 2, height: 5, selected: false, isToday: false },
-    { day: "2026-08-23", weekday: "S", date: "23", count: 0, height: 5, selected: false, isToday: false },
+    {
+      day: "2026-08-17",
+      weekday: "M",
+      date: "17",
+      count: 12,
+      height: 26,
+      selected: false,
+      isToday: false,
+    },
+    {
+      day: "2026-08-18",
+      weekday: "T",
+      date: "18",
+      count: 21,
+      height: 44,
+      selected: false,
+      isToday: false,
+    },
+    {
+      day: "2026-08-19",
+      weekday: "W",
+      date: "19",
+      count: 16,
+      height: 34,
+      selected: false,
+      isToday: false,
+    },
+    {
+      day: "2026-08-20",
+      weekday: "T",
+      date: "20",
+      count: 23,
+      height: 48,
+      selected: true,
+      isToday: true,
+    },
+    {
+      day: "2026-08-21",
+      weekday: "F",
+      date: "21",
+      count: 9,
+      height: 19,
+      selected: false,
+      isToday: false,
+    },
+    {
+      day: "2026-08-22",
+      weekday: "S",
+      date: "22",
+      count: 2,
+      height: 5,
+      selected: false,
+      isToday: false,
+    },
+    {
+      day: "2026-08-23",
+      weekday: "S",
+      date: "23",
+      count: 0,
+      height: 5,
+      selected: false,
+      isToday: false,
+    },
   ],
 };
 
@@ -189,3 +351,4 @@ export default async function Preview({ searchParams }: PageProps<"/preview">) {
 
   return <DigestScreen digest={digest} />;
 }
+
