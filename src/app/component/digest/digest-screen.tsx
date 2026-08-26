@@ -34,19 +34,17 @@ export function Column({
 }
 
 /**
- * The sticky header. Its title and date pill come straight from the URL, so
- * they repaint the instant a new day is picked; `bars` and `recap` are slots
- * the page fills with suspended content.
+ * The sticky header: the date, the picker, and the week's bars. Nothing else —
+ * every row that lives up here is a row of mail that doesn't, and the recap
+ * reads perfectly well from the top of the scrolling column instead.
  */
 export function HeaderFrame({
   day,
   bars,
-  recap,
   onSelectDay,
 }: {
   day: string;
   bars: React.ReactNode;
-  recap: React.ReactNode;
   onSelectDay?: (day: string) => void;
 }) {
   const title = formatDayTitle(day);
@@ -65,18 +63,16 @@ export function HeaderFrame({
           />
         </div>
 
-        <div className="md:flex md:items-end md:gap-10">
-          {bars}
-          {recap}
-        </div>
+        {bars}
       </Column>
     </header>
   );
 }
 
+/** The day in a sentence. Scrolls away with the mail it describes. */
 export function RecapLine({ text }: { text: string }) {
   return (
-    <p className="mt-4 break-words border-t border-stroke-soft-200 pt-4 text-paragraph-sm text-text-sub-600 text-pretty md:mt-0 md:flex-1 md:border-l md:border-t-0 md:pb-2 md:pl-10 md:pt-0 md:text-paragraph-md">
+    <p className="break-words pb-1 pt-5 text-paragraph-sm text-text-sub-600 text-pretty md:text-paragraph-md">
       {text}
     </p>
   );
@@ -113,14 +109,16 @@ export function Empty({ day, noise = 0 }: { day: string; noise?: number }) {
   );
 }
 
-/** Urgency bands, then the collapsed noise row. */
+/** The recap, the urgency bands, then the collapsed noise row. */
 export function BandsList({ digest }: { digest: DayDigest }) {
   if (digest.total === 0 && digest.noise.length === 0) {
     return <Empty day={digest.day} />;
   }
 
   return (
-    <Column className="flex-1 pb-4 pt-1.5">
+    <Column className="flex-1 pb-4">
+      <RecapLine text={digest.recap} />
+
       {digest.total === 0 ? (
         <Empty day={digest.day} noise={digest.noise.length} />
       ) : (
@@ -191,11 +189,7 @@ export function Footer({
 export function DigestScreen({ digest }: { digest: Digest }) {
   return (
     <Shell>
-      <HeaderFrame
-        day={digest.day}
-        bars={<WeekStrip week={digest.week} />}
-        recap={<RecapLine text={digest.recap} />}
-      />
+      <HeaderFrame day={digest.day} bars={<WeekStrip week={digest.week} />} />
       <BandsList digest={digest} />
       <Footer source={digest.source} />
     </Shell>

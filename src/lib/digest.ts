@@ -109,13 +109,19 @@ export const getDay = cache(
       // fifty of them would dwarf everything else the page sends.
       void text;
 
+      const insight = insights.byId[message.id] ?? {
+        purpose: message.subject,
+        due: "",
+        dueKind: "none" as const,
+        band: "fyi" as const,
+      };
+
       return {
         ...message,
-        ...(insights.byId[message.id] ?? {
-          purpose: message.subject,
-          due: "",
-          band: "fyi" as const,
-        }),
+        ...insight,
+        // Whatever the model called it, a date attached to an invitation is
+        // when the thing happens.
+        dueKind: message.invite ? ("event" as const) : insight.dueKind,
       };
     });
 
@@ -137,6 +143,7 @@ export const getDay = cache(
         ...message,
         purpose: message.subject,
         due: "",
+        dueKind: "none" as const,
         band: "noise" as const,
       })),
     };

@@ -20,11 +20,12 @@ export function WeekStripSkeleton() {
   );
 }
 
+/** The recap line, which now scrolls with the mail rather than sitting above it. */
 export function RecapSkeleton() {
   return (
-    <div className="mt-4 animate-pulse border-t border-stroke-soft-200 pt-4 md:mt-0 md:flex-1 md:border-l md:border-t-0 md:pb-2 md:pl-10 md:pt-0">
-      <div className="h-3 w-[92%] rounded-full bg-bg-weak-50" />
-      <div className="mt-2.5 h-3 w-[64%] rounded-full bg-bg-weak-50" />
+    <div className="pb-1 pt-5">
+      <div className="h-3 w-[86%] rounded-full bg-bg-weak-50" />
+      <div className="mt-2.5 h-3 w-[52%] rounded-full bg-bg-weak-50" />
     </div>
   );
 }
@@ -32,7 +33,9 @@ export function RecapSkeleton() {
 /** A band header plus a few message cards. */
 export function BandsSkeleton() {
   return (
-    <Column className="animate-pulse pb-4 pt-1.5">
+    <Column className="animate-pulse pb-4">
+      <RecapSkeleton />
+
       <div className="flex items-center gap-2.5 pb-2.5 pt-5">
         <span className="size-[9px] rounded-[3px] bg-bg-soft-200" />
         <span className="h-3 w-24 rounded-full bg-bg-weak-50" />
@@ -65,13 +68,51 @@ export function DigestSkeleton() {
             <div className="h-8 w-40 rounded-lg bg-bg-weak-50 md:h-11 md:w-64" />
             <div className="h-8 w-32 rounded-lg bg-bg-weak-50" />
           </div>
-          <div className="md:flex md:items-end md:gap-10">
-            <WeekStripSkeleton />
-            <RecapSkeleton />
-          </div>
+          <WeekStripSkeleton />
         </Column>
       </div>
       <BandsSkeleton />
     </>
+  );
+}
+
+/**
+ * The message detail view while Gmail is being read. Deliberately the same
+ * frame as the real page — back link, title, sender row, summary card — so the
+ * arriving content settles into place instead of replacing something else.
+ */
+export function MessageSkeleton() {
+  return (
+    <div className="flex min-h-dvh flex-col bg-bg-white-0">
+      <div className="mx-auto w-full min-w-0 max-w-[440px] px-6 md:max-w-2xl md:px-10">
+        <header className="flex items-center justify-between pb-3 pt-5 md:pt-8">
+          <span className="text-label-sm text-text-sub-600">‹ Digest</span>
+          <span className="text-label-xs uppercase tracking-[0.08em] text-text-soft-400">
+            Read only
+          </span>
+        </header>
+
+        <div className="animate-pulse pb-16 pt-3">
+          <div className="h-6 w-[78%] rounded-lg bg-bg-weak-50 md:h-8" />
+
+          <div className="mt-5 flex items-center gap-3 border-b border-stroke-soft-200 pb-4">
+            <div className="size-10 shrink-0 rounded-full bg-bg-weak-50" />
+            <div className="flex-1">
+              <div className="h-3 w-32 rounded-full bg-bg-weak-50" />
+              <div className="mt-2 h-2.5 w-44 rounded-full bg-bg-weak-50" />
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-2xl bg-bg-weak-50 p-5 md:p-6">
+            <div className="h-2.5 w-16 rounded-full bg-bg-soft-200" />
+            <div className="mt-4 flex flex-col gap-2.5">
+              <div className="h-3 w-full rounded-full bg-bg-soft-200" />
+              <div className="h-3 w-[92%] rounded-full bg-bg-soft-200" />
+              <div className="h-3 w-2/3 rounded-full bg-bg-soft-200" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

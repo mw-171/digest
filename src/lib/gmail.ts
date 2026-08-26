@@ -358,9 +358,24 @@ export async function fetchMessage(
   };
 }
 
-/** The address of the connected mailbox, for account-correct Gmail links. */
+/**
+ * The address of the connected mailbox — for account-correct Gmail links, and
+ * for matching your own ATTENDEE line on an invitation.
+ *
+ * Memoised against the refresh token, because the answer cannot change while
+ * that token does not, and this would otherwise cost a round trip on the way
+ * to rendering every digest and every message.
+ */
+const accountEmails = new Map<string, string>();
+
 export async function fetchAccountEmail(auth: OAuthClient) {
+  const token = auth.credentials.refresh_token ?? "";
+  const known = accountEmails.get(token);
+  if (known) return known;
+
   const gmail = google.gmail({ version: "v1", auth });
   const { data } = await gmail.users.getProfile({ userId: "me" });
-  return data.emailAddress ?? "";
+  const email = data.emailAddress ?? "";
+  if (email) accountEmails.set(token, email);
+  return email;
 }

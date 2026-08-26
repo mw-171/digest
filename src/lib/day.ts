@@ -93,16 +93,24 @@ export function daysBetween(from: string, to: string) {
 }
 
 /**
- * A deadline, read from the day you are looking at rather than from now.
+ * A date on a card, read from the day you are looking at rather than from now.
  *
- * Browsing back a week must not turn last Tuesday's "by tomorrow" into
- * something a week overdue, so everything here counts from `day` — the date on
- * screen. Only the two nearest days get a word; beyond that it is a real date,
- * because a bare weekday name ("by Thu") is unreadable the moment the digest
- * is not today's.
+ * Browsing back a week must not turn last Tuesday's "tomorrow" into something
+ * a week overdue, so everything here counts from `day` — the date on screen.
+ * Only the two nearest days get a word; beyond that it is a real date, because
+ * a bare weekday name ("Thu") is unreadable the moment the digest is not
+ * today's.
+ *
+ * "by" is reserved for deadlines. A meeting on the 28th is not due by the
+ * 28th, it happens on it, and saying otherwise turns every invitation into
+ * something that looks overdue.
  */
-export function formatDeadline(due: string, day: string) {
-  if (!isValidDay(due)) return null;
+export function formatDeadline(
+  due: string,
+  day: string,
+  kind: "deadline" | "event" | "none" = "deadline",
+) {
+  if (!isValidDay(due) || kind === "none") return null;
 
   const offset = daysBetween(day, due);
   if (offset === 0) return { label: "today", late: false };
@@ -117,7 +125,10 @@ export function formatDeadline(due: string, day: string) {
     ...(due.slice(0, 4) === day.slice(0, 4) ? {} : { year: "numeric" }),
   });
 
-  return { label: offset > 0 ? `by ${stamp}` : stamp, late: offset < 0 };
+  return {
+    label: kind === "deadline" && offset > 0 ? `by ${stamp}` : stamp,
+    late: offset < 0,
+  };
 }
 
 /** "Thu 28 Aug" / "Thu 28 Aug, 10:00" — the invite card's line. */

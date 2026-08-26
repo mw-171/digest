@@ -1,7 +1,20 @@
+import { keepPreviousData } from "@tanstack/react-query";
+
 import { toDayString } from "@/lib/day";
 import type { DayDigest, WeekDay } from "@/lib/digest";
 
 export type DigestOptions = { useAi: boolean };
+
+/**
+ * Bumped whenever the shape of a cached payload changes. The persisted cache
+ * is thrown away rather than rehydrated into a UI that no longer understands
+ * it — a stored digest from before `dueKind` existed would render dates that
+ * cannot be labelled.
+ */
+export const CACHE_VERSION = "4";
+
+/** How long a persisted digest is worth restoring before it is just history. */
+export const CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
 
 export const dayKey = (day: string, options: DigestOptions) =>
   ["day", day, options.useAi ? "ai" : "plain"] as const;
@@ -38,34 +51,50 @@ async function getJson<T>(url: string): Promise<T> {
 }
 
 /**
- * Never stale, on purpose. The cache lives in memory for exactly one tab
- * session, so reloading the tab already throws it away and re-hits Gmail —
- * that is the refresh gesture, and there is no button or timer besides it.
- * Within a session, paging back to a day you have already opened is instant
- * and costs nothing.
+ * Show what we have, then check.
+ *
+ * The cache is persisted to localStorage, so a day you have opened before
+ * paints immediately — on a reload too, not just while paging around. Today is
+ * marked stale the moment it mounts, so that paint is followed by a quiet
+ * refetch and the mailbox still gets re-read on every reload; the difference
+ * is that you read yesterday's answer while it happens instead of a skeleton.
+ *
+ * A past day is settled — no more mail can arrive into it — so it is not
+ * rechecked at all within the cache's lifetime.
  *
  * The AI setting is part of the key, so flipping the toggle swaps between
  * cached views of the same day rather than throwing either of them away.
  */
-export function dayQuery(day: string, options: DigestOptions) {
+export function dayQuery(day: string, today: string, options: DigestOptions) {
   const params = new URLSearchParams({ date: day });
   if (!options.useAi) params.set("ai", "0");
 
   return {
     queryKey: dayKey(day, options),
     queryFn: () => getJson<DayDigest>(`/api/digest?${params}`),
-    staleTime: Infinity,
+    staleTime: day === today ? 0 : CACHE_MAX_AGE,
   };
 }
 
-/** Same rule for the week's volume bars. */
-export function weekQuery(day: string) {
+/**
+ * Same rule for the week's volume bars, plus one: the previous week's bars
+ * stand in while the next ones load.
+ *
+ * Picking a day changes the query key, which would otherwise blank the strip
+ * back to a skeleton — a whole block of chrome flickering above content that
+ * is itself reloading. The bars barely move between neighbouring days, so
+ * holding the old ones is both calmer and truer.
+ */
+export function weekQuery(day: string, today: string) {
   const params = new URLSearchParams({ date: day });
 
   return {
     queryKey: weekKey(day),
     queryFn: () => getJson<WeekDay[]>(`/api/week?${params}`),
-    staleTime: Infinity,
+    // A window containing today can still gain mail; one entirely in the past
+    // cannot.
+    staleTime: day >= today ? 0 : CACHE_MAX_AGE,
+    placeholderData: keepPreviousData,
   };
 }
 

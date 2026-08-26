@@ -1,3 +1,4 @@
+import { ClearCache } from "./clear-cache";
 import * as Button from "@/app/component/ui/button";
 
 const SCOPES = [
@@ -10,6 +11,7 @@ const SCOPES = [
 export function Connect({ error }: { error?: string | null }) {
   return (
     <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-8 py-16">
+      <ClearCache />
       <div aria-hidden className="flex h-14 items-end gap-[5px]">
         <span className="h-[26px] w-[15px] rounded-[5px] bg-primary-alpha-16" />
         <span className="h-[44px] w-[15px] rounded-[5px] bg-primary-base" />

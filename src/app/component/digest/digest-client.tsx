@@ -4,12 +4,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 
 import { Toggle } from "./toggle";
-import { BandsList, Footer, HeaderFrame, RecapLine, Shell } from "./digest-screen";
-import {
-  BandsSkeleton,
-  RecapSkeleton,
-  WeekStripSkeleton,
-} from "./skeletons";
+import { BandsList, Footer, HeaderFrame, Shell } from "./digest-screen";
+import { BandsSkeleton, WeekStripSkeleton } from "./skeletons";
 import { WeekStrip } from "./week-strip";
 import * as Button from "@/app/component/ui/button";
 import { aiCookieValue } from "@/lib/preferences";
@@ -59,8 +55,8 @@ export function DigestClient({
   const [options, setOptions] = React.useState<DigestOptions>({ useAi: initialAi });
   const queryClient = useQueryClient();
 
-  const dayResult = useQuery(dayQuery(day, options));
-  const weekResult = useQuery(weekQuery(day));
+  const dayResult = useQuery(dayQuery(day, today, options));
+  const weekResult = useQuery(weekQuery(day, today));
 
   const select = React.useCallback((next: string) => {
     if (next > today) return;
@@ -84,8 +80,8 @@ export function DigestClient({
   React.useEffect(() => {
     if (!dayResult.isSuccess) return;
     const target = previousDay(day);
-    queryClient.prefetchQuery(dayQuery(target, options));
-  }, [day, dayResult.isSuccess, options, queryClient]);
+    queryClient.prefetchQuery(dayQuery(target, today, options));
+  }, [day, dayResult.isSuccess, options, queryClient, today]);
 
   return (
     <Shell>
@@ -94,16 +90,18 @@ export function DigestClient({
         onSelectDay={select}
         bars={
           weekResult.data ? (
-            <WeekStrip week={weekResult.data} onSelect={select} />
+            // The bars belong to the week, not to the day being fetched: the
+            // selected column moves the instant you pick a day, while the
+            // heights stay put until the new week actually lands.
+            <WeekStrip
+              week={weekResult.data.map((entry) => ({
+                ...entry,
+                selected: entry.day === day,
+              }))}
+              onSelect={select}
+            />
           ) : (
             <WeekStripSkeleton />
-          )
-        }
-        recap={
-          dayResult.data ? (
-            <RecapLine text={dayResult.data.recap} />
-          ) : (
-            <RecapSkeleton />
           )
         }
       />

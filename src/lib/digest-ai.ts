@@ -33,17 +33,26 @@ const InsightSchema = z.object({
       due: z
         .string()
         .describe(
-          'The date the message asks for, as YYYY-MM-DD. Resolve anything relative — "Friday", "tomorrow", "end of the week" — against the date the message was received, which is given with it. Empty string when it names no date.',
+          'The date the message turns on, as YYYY-MM-DD. Resolve anything relative — "Friday", "tomorrow", "end of the week" — against the date the message was received, which is given with it. Empty string when it names no date.',
+        ),
+      dueKind: z
+        .enum(["deadline", "event", "none"])
+        .describe(
+          'What that date is: "deadline" when the reader has to act by it, "event" when it is simply when something is scheduled to happen, "none" when there is no date.',
         ),
       band: z.enum(TRIAGE_BANDS),
     }),
   ),
 });
 
+export type DueKind = "deadline" | "event" | "none";
+
 export type Insight = {
   purpose: string;
-  /** A deadline as `YYYY-MM-DD`, or "". Formatted for display by `day.ts`. */
+  /** The date the message turns on, `YYYY-MM-DD`, or "". */
   due: string;
+  /** Whether that date is something to act by, or just when it happens. */
+  dueKind: DueKind;
   band: Band;
 };
 
@@ -55,7 +64,7 @@ export type DayInsights = {
 
 const MODEL = "claude-opus-5";
 // Bump when the prompt or schema changes so old cache entries are ignored.
-const PROMPT_VERSION = 3;
+const PROMPT_VERSION = 4;
 
 const SYSTEM = `You triage one day of a person's Gmail for a daily digest.
 
@@ -77,10 +86,16 @@ A message from a real person addressed to the reader is almost always "needs".
 Automated mail is only "needs" when it demands action by a date (a failed
 payment, an expiring card, an unanswered invitation).
 
-Set "due" only when the message names a date the reader has to act by, and
-always as YYYY-MM-DD. Each message comes with the date it was received — use it
-to resolve anything relative, so "by Friday" in a message received on
-2026-08-25 becomes 2026-08-28. Never guess a date the message does not state.
+Set "due" only when the message names a date, and always as YYYY-MM-DD. Each
+message comes with the date it was received — use it to resolve anything
+relative, so "by Friday" in a message received on 2026-08-25 becomes
+2026-08-28. Never guess a date the message does not state.
+
+Then say which kind of date it is. "deadline" is a date the reader has to act
+by: a payment due, a form to return, an RSVP to answer. "event" is a date
+something simply happens on: a meeting, a delivery, a flight, an appointment
+already booked. The distinction is shown to the reader, so a dentist
+appointment is an event and the invoice that pays for it is a deadline.
 
 The recap names what actually needs the reader today. Two sentences at the
 very most, and shorter is better. Write plain declarative sentences. Never use
@@ -116,7 +131,8 @@ function heuristics(messages: SignalMessage[]): DayInsights {
 
     byId[message.id] = {
       purpose: message.subject,
-      due: message.invite && !message.invite.allDay ? message.invite.start.slice(0, 10) : "",
+      due: message.invite ? message.invite.start.slice(0, 10) : "",
+      dueKind: message.invite ? "event" : "none",
       band: needs ? "needs" : "fyi",
     };
   }
@@ -154,6 +170,7 @@ function shape(cached: CacheShape, messages: SignalMessage[]): DayInsights {
       // Anything that isn't a plain date is dropped rather than shown: a bare
       // weekday is ambiguous the moment you browse back a week.
       due: /^\d{4}-\d{2}-\d{2}$/.test(item.due.trim()) ? item.due.trim() : "",
+      dueKind: item.dueKind,
       band: item.band,
     };
   }
@@ -260,7 +277,12 @@ export async function readCachedInsight(
     const cached = await readCache<CacheShape>(file);
     const item = cached?.items.find((entry) => entry.id === id);
     if (item) {
-      return { purpose: item.purpose, due: item.due, band: item.band };
+      return {
+        purpose: item.purpose,
+        due: item.due,
+        dueKind: item.dueKind,
+        band: item.band,
+      };
     }
   }
   return null;

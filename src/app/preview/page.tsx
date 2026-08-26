@@ -2,7 +2,7 @@
 // be checked without a Gmail session. Safe to delete.
 
 import { DigestScreen, Shell } from "@/app/component/digest/digest-screen";
-import { DigestSkeleton } from "@/app/component/digest/skeletons";
+import { DigestSkeleton, MessageSkeleton } from "@/app/component/digest/skeletons";
 import type { Digest, DigestItem } from "@/lib/digest";
 import type { Band } from "@/lib/digest-ai";
 
@@ -14,6 +14,7 @@ function item(
   band: Band,
   hour: number,
   invite: DigestItem["invite"] = null,
+  dueKind: DigestItem["dueKind"] = due ? "deadline" : "none",
 ): DigestItem {
   return {
     id,
@@ -29,6 +30,7 @@ function item(
     invite,
     purpose,
     due,
+    dueKind: invite ? "event" : dueKind,
     band,
   };
 }
@@ -48,6 +50,8 @@ const digest: Digest = {
         item("1", "Priya Raghavan", "Approve two contract clauses", "2026-08-21", "needs", 8),
         item("2", "Marcus Lin", "Review the onboarding flow", "2026-08-20", "needs", 9),
         item("3", "Devi Sharma", "Reply to an intro with Devi", "", "needs", 10),
+        // A deadline further out: the one case that still says "by".
+        item("13", "Ravi Menon", "Sign the renewal", "2026-08-26", "needs", 12),
         // An unanswered invitation: same tier, its own card.
         item("11", "Priya Raghavan", "Quarterly planning", "", "needs", 10, {
           summary: "Quarterly planning with the platform team",
@@ -66,7 +70,8 @@ const digest: Digest = {
       title: "FYI",
       items: [
         item("4", "Stripe", "$4,182 payout on its way", "", "fyi", 6),
-        item("5", "Foster Dental", "Dentist booked, 3 Sept 10:15", "", "fyi", 11),
+        // An event date, not a deadline: it reads "3 Sept", never "by 3 Sept".
+        item("5", "Foster Dental", "Dentist appointment", "2026-09-03", "fyi", 11, null, "event"),
         item("6", "Ramp", "Spend ran $212 over baseline", "", "fyi", 13),
         // Answered, so it needs nothing — but still an invite card.
         item("12", "Marcus Lin", "Design review", "", "fyi", 12, {
@@ -107,7 +112,7 @@ const digest: Digest = {
   ],
 };
 
-/** `?state=loading` and `?state=empty` render the other two screens. */
+/** `?state=loading`, `?state=message` and `?state=empty` render the other screens. */
 export default async function Preview({ searchParams }: PageProps<"/preview">) {
   const state = (await searchParams).state;
 
@@ -117,6 +122,10 @@ export default async function Preview({ searchParams }: PageProps<"/preview">) {
         <DigestSkeleton />
       </Shell>
     );
+  }
+
+  if (state === "message") {
+    return <MessageSkeleton />;
   }
 
   if (state === "empty") {

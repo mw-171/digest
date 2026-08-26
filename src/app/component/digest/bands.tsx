@@ -17,9 +17,9 @@ const CARD = cn(
   "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary-alpha-24",
 );
 
-/** The deadline chip. Nothing at all when the message named no date. */
-function Deadline({ due, day }: { due: string; day: string }) {
-  const deadline = formatDeadline(due, day);
+/** The date chip. Nothing at all when the message named no date. */
+function Deadline({ item, day }: { item: DigestItem; day: string }) {
+  const deadline = formatDeadline(item.due, day, item.dueKind);
   if (!deadline) return null;
 
   return (
@@ -148,7 +148,7 @@ function MessageCard({ item, day }: { item: DigestItem; day: string }) {
           <span className="truncate text-label-xs text-text-sub-600">
             {item.from}
           </span>
-          <Deadline due={item.due} day={day} />
+          <Deadline item={item} day={day} />
         </span>
       </span>
     </Link>
