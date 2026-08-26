@@ -4,6 +4,7 @@ import * as React from "react";
 
 import * as Avatar from "@/app/component/ui/avatar";
 import type { Band } from "@/lib/digest-ai";
+import { senderLogoUrl } from "@/lib/grouping";
 
 /** Initials for the sender, falling back to AlignUI's empty-user avatar. */
 function initialsOf(name: string) {
@@ -13,54 +14,18 @@ function initialsOf(name: string) {
   return `${words[0][0]}${words[words.length - 1][0]}`;
 }
 
-const COLOR: Record<Band, React.ComponentProps<typeof Avatar.Root>["color"]> = {
-  needs: "purple",
-  fyi: "gray",
-  noise: "gray",
+/**
+ * The same purple twice, at two strengths: FYI is quieter than Needs You
+ * without becoming a different colour. Only noise is grey — it was never read.
+ */
+const TONE: Record<
+  Band,
+  { color: React.ComponentProps<typeof Avatar.Root>["color"]; className?: string }
+> = {
+  needs: { color: "purple" },
+  fyi: { color: "purple", className: "bg-purple-100 text-purple-900" },
+  noise: { color: "gray" },
 };
-
-/**
- * Mail from a person comes from one of these; mail from a brand does not. A
- * logo for a colleague's personal address would just be their provider's, so
- * these addresses keep their initials.
- */
-const MAILBOX_PROVIDERS = new Set([
-  "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com",
-  "msn.com", "yahoo.com", "ymail.com", "icloud.com", "me.com", "mac.com",
-  "aol.com", "proton.me", "protonmail.com", "pm.me", "gmx.com", "gmx.de",
-  "mail.com", "zoho.com", "fastmail.com", "hey.com", "qq.com", "163.com",
-  "yandex.ru", "mail.ru",
-]);
-
-/** Suffixes that are a registry, not a company: acme.co.uk needs three parts. */
-const TWO_PART_SUFFIXES = new Set([
-  "co.uk", "org.uk", "ac.uk", "gov.uk", "co.jp", "or.jp", "ne.jp", "co.nz",
-  "co.za", "com.au", "net.au", "org.au", "com.br", "com.mx", "com.sg",
-  "com.hk", "com.tw", "com.tr", "co.in", "co.kr", "co.il",
-]);
-
-/**
- * The sender's picture, which for mail is their domain's: brands are the
- * senders you actually recognise by sight, and Gmail's read-only scope gives
- * us no contact photos. Anything without a usable logo — a person, a domain
- * Google has never indexed — falls back to initials, and so does a load that
- * fails, so the row never sits empty.
- */
-function logoUrl(fromEmail: string) {
-  const domain = fromEmail.split("@")[1]?.toLowerCase().trim();
-  if (!domain || !domain.includes(".") || MAILBOX_PROVIDERS.has(domain)) {
-    return null;
-  }
-  // Strip the bounce subdomains bulk senders use (email.acme.com, mail.acme.com)
-  // so the logo comes from the brand's own domain — while leaving the second
-  // half of a two-part suffix alone, or every .co.uk sender would ask Google
-  // for the logo of "co.uk".
-  const parts = domain.split(".");
-  const suffix = parts.slice(-2).join(".");
-  const keep = TWO_PART_SUFFIXES.has(suffix) ? 3 : 2;
-  const root = parts.length > keep ? parts.slice(-keep).join(".") : domain;
-  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(root)}&sz=128`;
-}
 
 export function SenderAvatar({
   name,
@@ -75,13 +40,15 @@ export function SenderAvatar({
   size?: React.ComponentProps<typeof Avatar.Root>["size"];
 }) {
   const initials = initialsOf(name);
-  const src = email ? logoUrl(email) : null;
+  const src = email ? senderLogoUrl(email) : null;
   // Remembering *which* logo failed rather than that one did means a new
   // sender in the same slot still gets its own attempt.
   const [failed, setFailed] = React.useState<string | null>(null);
 
+  const tone = TONE[band];
+
   return (
-    <Avatar.Root size={size} color={COLOR[band]}>
+    <Avatar.Root size={size} color={tone.color} className={tone.className}>
       {src && failed !== src ? (
         <Avatar.Image
           src={src}

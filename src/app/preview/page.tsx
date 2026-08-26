@@ -15,12 +15,14 @@ function item(
   hour: number,
   invite: DigestItem["invite"] = null,
   dueKind: DigestItem["dueKind"] = due ? "deadline" : "none",
+  thread = id,
+  email?: string,
 ): DigestItem {
   return {
     id,
-    threadId: id,
+    threadId: thread,
     from,
-    fromEmail: `${from.split(" ")[0].toLowerCase()}@example.com`,
+    fromEmail: email ?? `${from.split(" ")[0].toLowerCase()}@example.com`,
     subject: purpose,
     snippet: "",
     receivedAt: new Date(2026, 7, 20, hour, 14).toISOString(),
@@ -49,6 +51,10 @@ const digest: Digest = {
       items: [
         item("1", "Priya Raghavan", "Approve two contract clauses", "2026-08-21", "needs", 8),
         item("2", "Marcus Lin", "Review the onboarding flow", "2026-08-20", "needs", 9),
+        // Same conversation, three messages: one card, not three.
+        item("2a", "Marcus Lin", "Re: Review the onboarding flow", "", "needs", 9, null, "none", "t-onboarding"),
+        item("2b", "Priya Raghavan", "Re: Review the onboarding flow", "", "needs", 9, null, "none", "t-onboarding"),
+        item("2c", "Devi Sharma", "Review the onboarding flow", "", "needs", 8, null, "none", "t-onboarding"),
         item("3", "Devi Sharma", "Reply to an intro with Devi", "", "needs", 10),
         // A deadline further out: the one case that still says "by".
         item("13", "Ravi Menon", "Sign the renewal", "2026-08-26", "needs", 12),
@@ -97,9 +103,48 @@ const digest: Digest = {
     },
   ],
   noise: [
-    item("7", "Linear", "Weekly workspace digest", "", "noise", 7),
-    item("8", "The Browser", "Five essays for the weekend", "", "noise", 15),
-    item("9", "LinkedIn", "Nine new job matches", "", "noise", 16),
+    // One busy bot thread plus six quiet ones, all under the same repo prefix:
+    // the case the source grouping, the prefix stripping and the "+ N more"
+    // row all exist for.
+    ...["a", "b", "c", "d", "e", "f", "g", "h"].map((suffix, index) =>
+      item(
+        `gh-${suffix}`,
+        ["Max Jiang", "Vidu Kanugula", "GitHub"][index % 3],
+        "[hackathon/my.hackthenorth.com] [ENG-3089] feat: add sponsor tiers",
+        "",
+        "noise",
+        7 + index,
+        null,
+        "none",
+        "t-gh-3089",
+        "notifications@github.com",
+      ),
+    ),
+    ...[
+      "[ENG-3102] fix: schedule timezone drift",
+      "[ENG-3095] chore: bump next to 16.3",
+      "[ENG-3090] feat: judging rubric export",
+      "[ENG-3081] fix: mentor queue ordering",
+      "[ENG-3077] docs: sponsor onboarding",
+      "[ENG-3070] feat: travel reimbursement form",
+    ].map((subject, index) =>
+      item(
+        `gh-pr-${index}`,
+        "GitHub",
+        `[hackathon/my.hackthenorth.com] ${subject}`,
+        "",
+        "noise",
+        12 + index,
+        null,
+        "none",
+        `t-gh-pr-${index}`,
+        "notifications@github.com",
+      ),
+    ),
+    item("li-1", "LinkedIn", "Nine new job matches", "", "noise", 16, null, "none", "li-1", "jobs@linkedin.com"),
+    item("li-2", "LinkedIn", "Priya viewed your profile", "", "noise", 17, null, "none", "li-2", "notify@e.linkedin.com"),
+    item("nl-1", "The Browser", "Five essays for the weekend", "", "noise", 15, null, "none", "nl-1", "hi@thebrowser.com"),
+    item("nl-2", "Linear", "Weekly workspace digest", "", "noise", 7, null, "none", "nl-2", "digest@linear.app"),
   ],
   week: [
     { day: "2026-08-17", weekday: "M", date: "17", count: 12, height: 26, selected: false, isToday: false },

@@ -101,9 +101,10 @@ export function daysBetween(from: string, to: string) {
  * a bare weekday name ("Thu") is unreadable the moment the digest is not
  * today's.
  *
- * "by" is reserved for deadlines. A meeting on the 28th is not due by the
- * 28th, it happens on it, and saying otherwise turns every invitation into
- * something that looks overdue.
+ * "by" is reserved for deadlines; an event gets "on". A meeting on the 28th is
+ * not due by the 28th, it happens on it, and saying otherwise turns every
+ * invitation into something that looks overdue. The two nearest days need no
+ * preposition at all — "today" already says when.
  */
 export function formatDeadline(
   due: string,
@@ -126,7 +127,7 @@ export function formatDeadline(
   });
 
   return {
-    label: kind === "deadline" && offset > 0 ? `by ${stamp}` : stamp,
+    label: `${kind === "deadline" ? "by" : "on"} ${stamp}`,
     late: offset < 0,
   };
 }

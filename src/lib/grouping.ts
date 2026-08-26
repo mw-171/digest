@@ -1,0 +1,391 @@
+import type { DigestItem } from "@/lib/digest";
+
+/**
+ * Shape, from data we already have.
+ *
+ * A day's mail is not a list, it is a handful of conversations that each
+ * arrived in pieces. Thirty rows of "Max commented on #412" is thirty rows of
+ * the same thing, and the inbox already told us so — every message carries the
+ * thread it belongs to and the address it came from. Grouping on those two
+ * fields turns a wall into a shape, costs one pass over an array, and cannot
+ * hallucinate, which is more than a model summarising the same list could say.
+ */
+
+export type Thread = {
+  /** The Gmail thread id, or the message id for a message standing alone. */
+  id: string;
+  /**
+   * What the row shows. Equal to `subject` until the thread is placed in a
+   * group, where the boilerplate every subject in that group shares is cut.
+   */
+  title: string;
+  /** Newest first, as fetched. */
+  items: DigestItem[];
+  /** The newest message — what tapping the thread opens. */
+  latest: DigestItem;
+  /** Distinct sender names, newest first. */
+  participants: string[];
+  /** What the thread is called: the root subject, minus the Re:/Fwd: crust. */
+  subject: string;
+  count: number;
+};
+
+/**
+ * What a group is: one sender, or the bucket the one-offs were swept into.
+ * The bucket's kind decides which icon stands in for the face it hasn't got.
+ */
+export type GroupKind = "sender" | "promotions" | "social" | "forums" | "mixed";
+
+export type SenderGroup = {
+  /** Root domain, or "" for the remainder bucket. */
+  key: string;
+  kind: GroupKind;
+  /** Who sent it: "GitHub", never one of its subject lines. */
+  label: string;
+  /** Two to four words on what this pile is, read off the data. */
+  descriptor: string;
+  /** Threads, titled with the group's shared boilerplate removed. */
+  threads: Thread[];
+  /** Messages, not threads. */
+  count: number;
+};
+
+/** Suffixes that are a registry, not a company: acme.co.uk needs three parts. */
+const TWO_PART_SUFFIXES = new Set([
+  "co.uk", "org.uk", "ac.uk", "gov.uk", "co.jp", "or.jp", "ne.jp", "co.nz",
+  "co.za", "com.au", "net.au", "org.au", "com.br", "com.mx", "com.sg",
+  "com.hk", "com.tw", "com.tr", "co.in", "co.kr", "co.il",
+]);
+
+/**
+ * The domain a sender belongs to, with the bounce subdomains bulk senders use
+ * stripped — `notifications@email.acme.com` and `no-reply@mail.acme.com` are
+ * the same company and belong on the same row.
+ */
+export function senderDomain(email: string) {
+  const domain = email.split("@")[1]?.toLowerCase().trim();
+  if (!domain || !domain.includes(".")) return "";
+
+  const parts = domain.split(".");
+  const keep = TWO_PART_SUFFIXES.has(parts.slice(-2).join(".")) ? 3 : 2;
+  return parts.length > keep ? parts.slice(-keep).join(".") : domain;
+}
+
+/**
+ * Mail from a person comes from one of these; mail from a brand does not. A
+ * logo for a colleague's personal address would just be their provider's, so
+ * these addresses keep their initials.
+ */
+const MAILBOX_PROVIDERS = new Set([
+  "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com",
+  "msn.com", "yahoo.com", "ymail.com", "icloud.com", "me.com", "mac.com",
+  "aol.com", "proton.me", "protonmail.com", "pm.me", "gmx.com", "gmx.de",
+  "mail.com", "zoho.com", "fastmail.com", "hey.com", "qq.com", "163.com",
+  "yandex.ru", "mail.ru",
+]);
+
+/**
+ * The sender's picture, which for mail is their domain's: brands are the
+ * senders you actually recognise by sight, and Gmail's read-only scope gives
+ * us no contact photos. Null where there is no brand to show — a person, or an
+ * address with no usable domain — and the caller falls back to initials.
+ */
+export function senderLogoUrl(email: string) {
+  const domain = senderDomain(email);
+  if (!domain || MAILBOX_PROVIDERS.has(domain)) return null;
+  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+}
+
+/**
+ * `Re: Fwd: Deploy failed` → `Deploy failed`.
+ *
+ * Only the reply crust comes off here. A bracketed prefix is left alone on
+ * purpose: whether `[hackathon/site]` is boilerplate or `[ENG-3089]` is the
+ * most useful thing in the line depends on what the *other* subjects in its
+ * group look like, which is a question for {@link groupBySender}.
+ */
+export function normalizeSubject(subject: string) {
+  let value = subject.trim();
+  let previous = "";
+
+  while (value !== previous) {
+    previous = value;
+    value = value
+      .replace(/^(re|fwd?|aw|sv|vs|antwort)\s*(\[\d+\])?\s*:\s*/i, "")
+      .trim();
+  }
+
+  return value || subject.trim();
+}
+
+/**
+ * One entry per conversation, in the order the newest message of each arrived.
+ * A thread of one is still a thread — the callers decide whether that renders
+ * as a card or a row.
+ */
+export function threadsOf(items: DigestItem[]): Thread[] {
+  const byThread = new Map<string, DigestItem[]>();
+
+  for (const item of items) {
+    const key = item.threadId || item.id;
+    const existing = byThread.get(key);
+    if (existing) existing.push(item);
+    else byThread.set(key, [item]);
+  }
+
+  return [...byThread.entries()].map(([id, members]) => {
+    const subject = normalizeSubject(members[members.length - 1].subject);
+    const participants: string[] = [];
+    for (const member of members) {
+      if (member.from && !participants.includes(member.from)) {
+        participants.push(member.from);
+      }
+    }
+
+    return {
+      id,
+      items: members,
+      latest: members[0],
+      participants,
+      // The last member is the oldest, so its subject is the one the thread
+      // was started under rather than whatever the latest reply renamed it to.
+      subject,
+      title: subject,
+      count: members.length,
+    };
+  });
+}
+
+/** "Max Jiang, Vidu +1" — who is in the conversation, at a glance. */
+export function participantLabel(participants: string[], limit = 2) {
+  if (participants.length === 0) return "";
+  const shown = participants.slice(0, limit).join(", ");
+  const rest = participants.length - limit;
+  return rest > 0 ? `${shown} +${rest}` : shown;
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  promotions: "Promotions",
+  social: "Social",
+  forums: "Forums",
+  updates: "Updates",
+  personal: "Everything else",
+};
+
+/**
+ * Brands whose own capitalisation a machine will not guess. Only names that
+ * appear in a mailbox often enough to be worth spelling right.
+ */
+const BRANDS: Record<string, string> = {
+  "github.com": "GitHub",
+  "gitlab.com": "GitLab",
+  "linkedin.com": "LinkedIn",
+  "youtube.com": "YouTube",
+  "paypal.com": "PayPal",
+  "tiktok.com": "TikTok",
+  "dropbox.com": "Dropbox",
+  "figma.com": "Figma",
+  "notion.so": "Notion",
+  "openai.com": "OpenAI",
+  "anthropic.com": "Anthropic",
+  "airbnb.com": "Airbnb",
+  "ebay.com": "eBay",
+  "doordash.com": "DoorDash",
+  "substack.com": "Substack",
+  "eventbrite.com": "Eventbrite",
+};
+
+/** Title Case for a bare domain: `linear.app` → `Linear`. */
+function fromDomain(domain: string) {
+  const known = BRANDS[domain];
+  if (known) return known;
+  const name = domain.split(".")[0] ?? domain;
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+/** The characters every string starts with, cut back to a word boundary. */
+function commonPrefix(values: string[]) {
+  if (values.length < 2) return "";
+
+  let prefix = values[0];
+  for (const value of values.slice(1)) {
+    let index = 0;
+    while (index < prefix.length && prefix[index] === value[index]) index++;
+    prefix = prefix.slice(0, index);
+    if (!prefix) return "";
+  }
+
+  // Cut at the last separator so a shared prefix never ends mid-word: two
+  // subjects about "Deploy failed" and "Deploy fixed" share "Deploy f".
+  const cut = Math.max(
+    prefix.lastIndexOf(" "),
+    prefix.lastIndexOf("]"),
+    prefix.lastIndexOf(":"),
+  );
+  const trimmed = cut > 0 ? prefix.slice(0, cut + 1) : "";
+  // Boilerplate is worth cutting; two shared characters are not.
+  return trimmed.trim().length >= 4 ? trimmed : "";
+}
+
+/**
+ * Two to four words on what a pile is, from the pile itself.
+ *
+ * The boilerplate every subject shares is usually the answer — a repo, a
+ * workspace, a list name — because a sender that repeats itself is telling you
+ * what it is about. Failing that, who signed the mail.
+ */
+function describeGroup(threads: Thread[], prefix: string) {
+  const shared = prefix.replace(/[[\]():\s]+/g, " ").trim();
+  if (shared) {
+    // A path reads better as its last segment: hackathon/my.site → my.site
+    const leaf = shared.split("/").filter(Boolean).pop() ?? shared;
+    return leaf.split(/\s+/).slice(0, 3).join(" ");
+  }
+
+  const names: string[] = [];
+  for (const thread of threads) {
+    for (const item of thread.items) {
+      if (item.from && !names.includes(item.from)) names.push(item.from);
+    }
+  }
+
+  if (names.length > 1) return names.slice(0, 2).join(", ");
+  return threads.length > 1 ? `${threads.length} threads` : "";
+}
+
+/**
+ * What to call a group.
+ *
+ * A sender's own display name is better than its domain — "GitHub" beats
+ * "Github" — but only when the group agrees on one. A pile of PR
+ * notifications signed by whoever pushed would otherwise label the whole
+ * domain after the busiest colleague.
+ */
+function groupLabel(threads: Thread[], domain: string) {
+  const counts = new Map<string, number>();
+  let total = 0;
+
+  for (const thread of threads) {
+    for (const item of thread.items) {
+      counts.set(item.from, (counts.get(item.from) ?? 0) + 1);
+      total++;
+    }
+  }
+
+  // A sender that signs with its own name — "GitHub" from github.com — is the
+  // best label going, however many colleagues also post to the thread.
+  const label = domain.split(".")[0];
+  const branded = [...counts.keys()].find(
+    (name) => name.toLowerCase().replace(/\s+/g, "") === label,
+  );
+  if (branded) return branded;
+
+  const [name, count] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0] ?? ["", 0];
+  return count / total >= 0.6 && name ? name : fromDomain(domain);
+}
+
+/**
+ * Threads gathered by who sent them, biggest first. Senders with a single
+ * message are swept into one remainder row rather than each taking a line —
+ * the point of this view is the shape of the pile, and forty rows of one is
+ * the wall it replaces.
+ */
+/**
+ * A group's descriptor, and its threads with the shared boilerplate cut off
+ * the front of every title. Thirty rows that all begin
+ * "[hackathon/my.hackthenorth.com]" are thirty rows saying one thing once.
+ */
+function titled(threads: Thread[]) {
+  const prefix = commonPrefix(threads.map((thread) => thread.subject));
+
+  return {
+    descriptor: describeGroup(threads, prefix),
+    threads: prefix
+      ? threads.map((thread) => ({
+          ...thread,
+          title: thread.subject.slice(prefix.length).trim() || thread.subject,
+        }))
+      : threads,
+  };
+}
+
+export function groupBySender(threads: Thread[], minGroup = 2): SenderGroup[] {
+  const byDomain = new Map<string, Thread[]>();
+
+  for (const thread of threads) {
+    const domain = senderDomain(thread.latest.fromEmail);
+    const existing = byDomain.get(domain);
+    if (existing) existing.push(thread);
+    else byDomain.set(domain, [thread]);
+  }
+
+  const groups: SenderGroup[] = [];
+  const remainder: Thread[] = [];
+
+  for (const [domain, group] of byDomain) {
+    const count = group.reduce((sum, thread) => sum + thread.count, 0);
+    if (!domain || count < minGroup) {
+      remainder.push(...group);
+      continue;
+    }
+
+    groups.push({
+      key: domain,
+      kind: "sender",
+      label: groupLabel(group, domain),
+      ...titled(group),
+      count,
+    });
+  }
+
+  groups.sort((a, b) => b.count - a.count);
+
+  if (remainder.length) {
+    const categories = new Set(remainder.map((thread) => thread.latest.category));
+    const only = categories.size === 1 ? [...categories][0] : "";
+    const kind: GroupKind =
+      only === "promotions" || only === "social" || only === "forums"
+        ? only
+        : "mixed";
+
+    groups.push({
+      key: "",
+      kind,
+      label: (only && CATEGORY_LABELS[only]) || "Everything else",
+      ...titled(remainder),
+      count: remainder.reduce((sum, thread) => sum + thread.count, 0),
+    });
+  }
+
+  return groups;
+}
+
+/**
+ * The noise in one line, written from the counts.
+ *
+ * Templated on purpose. This exists to say what the pile is made of, and a
+ * model asked to summarise forty subject lines would cost a call, take a
+ * second, and occasionally invent a sender — where arithmetic on the groups is
+ * instant, free and cannot be wrong. It never repeats a number the rows below
+ * already carry.
+ */
+export function describeGroups(groups: SenderGroup[]) {
+  const total = groups.reduce((sum, group) => sum + group.count, 0);
+  if (total === 0) return "";
+
+  const [top] = groups;
+  const closer = "Nothing needs you.";
+
+  if (top.count / total > 0.6) {
+    // "Mostly LinkedIn 2 threads" is a worse sentence than "Mostly LinkedIn":
+    // a descriptor that is only a count says nothing the rows don't.
+    const descriptor = /^\d+ threads?$/.test(top.descriptor) ? "" : top.descriptor;
+    return `Mostly ${[top.label, descriptor].filter(Boolean).join(" ")}. ${closer}`;
+  }
+
+  if (groups.length <= 2) {
+    return `${groups.map((group) => group.label).join(" and ")}. ${closer}`;
+  }
+
+  return `${top.label}, ${groups[1].label}, and ${groups.length - 2} more. ${closer}`;
+}

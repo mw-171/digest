@@ -128,7 +128,7 @@ export function BandsList({ digest }: { digest: DayDigest }) {
             title={band.title}
             items={band.items}
             day={digest.day}
-            muted={band.key !== "needs"}
+            tier={band.key}
           />
         ))
       )}
@@ -136,7 +136,7 @@ export function BandsList({ digest }: { digest: DayDigest }) {
       <NoiseSection items={digest.noise} day={digest.day} />
 
       <p className="py-7 text-center text-label-xs text-text-soft-400">
-        That was the day.
+        end of day!
         {digest.truncated && " (first 50 messages)"}
       </p>
     </Column>
