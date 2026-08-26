@@ -1038,3 +1038,34 @@ body {
   margin: 0;
   padding: 0;
 }
+
+/* Nothing may push the page sideways. `clip` rather than `hidden` so the
+   sticky header keeps working — `hidden` would turn the body into a scroll
+   container and break it. */
+html {
+  overflow-x: clip;
+}
+
+body {
+  overflow-x: clip;
+}
+
+/* Scrollbars are hidden everywhere; the content still scrolls. */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* Long URLs and unbroken tokens wrap instead of overflowing. */
+p,
+h1,
+h2,
+h3 {
+  overflow-wrap: break-word;
+}
