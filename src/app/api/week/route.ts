@@ -13,7 +13,6 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const date = request.nextUrl.searchParams.get("date") ?? toDayString();
-  const includeBulk = request.nextUrl.searchParams.get("bulk") === "1";
   if (!isValidDay(date) || date > toDayString()) {
     return json({ error: "Bad date." }, 400);
   }
@@ -23,7 +22,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    return json(await getWeek(date, includeBulk));
+    return json(await getWeek(date));
   } catch (error) {
     console.error("Could not load the week", error);
     return json(

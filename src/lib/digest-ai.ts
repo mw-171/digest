@@ -5,9 +5,15 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 
 import { listCache, readCache, writeCache } from "@/lib/ai-cache";
-import type { DigestMessage } from "@/lib/gmail";
+import type { SignalMessage } from "@/lib/gmail";
 
-export const BANDS = ["needs", "notifications", "noise"] as const;
+/**
+ * The urgency axis. Only the first two are the model's to decide: noise is
+ * whatever Gmail already filed under promotions, social or forums, and it
+ * never reaches the model at all.
+ */
+export const TRIAGE_BANDS = ["needs", "fyi"] as const;
+export const BANDS = [...TRIAGE_BANDS, "noise"] as const;
 export type Band = (typeof BANDS)[number];
 
 const InsightSchema = z.object({
@@ -24,19 +30,20 @@ const InsightSchema = z.object({
         .describe(
           "What this message is for, at most six words. Replaces the subject line, so do not repeat it verbatim when the subject is vague.",
         ),
-      when: z
+      due: z
         .string()
         .describe(
-          'A deadline the message states, very short, e.g. "by Fri" or "3 Sept". Empty string when it names none.',
+          'The date the message asks for, as YYYY-MM-DD. Resolve anything relative — "Friday", "tomorrow", "end of the week" — against the date the message was received, which is given with it. Empty string when it names no date.',
         ),
-      band: z.enum(BANDS),
+      band: z.enum(TRIAGE_BANDS),
     }),
   ),
 });
 
 export type Insight = {
   purpose: string;
-  when: string;
+  /** A deadline as `YYYY-MM-DD`, or "". Formatted for display by `day.ts`. */
+  due: string;
   band: Band;
 };
 
@@ -48,7 +55,7 @@ export type DayInsights = {
 
 const MODEL = "claude-opus-5";
 // Bump when the prompt or schema changes so old cache entries are ignored.
-const PROMPT_VERSION = 2;
+const PROMPT_VERSION = 3;
 
 const SYSTEM = `You triage one day of a person's Gmail for a daily digest.
 
@@ -60,17 +67,20 @@ a trailing period.
 
 Sort each message into exactly one band:
 - "needs" — the reader has to do or decide something: a direct question, a
-  request, a signature, a payment, an RSVP, a hard deadline.
-- "notifications" — something happened that the reader should know about but
-  need not act on: receipts, confirmations, deliveries, automated reports.
-- "noise" — bulk mail: marketing, newsletters, social notifications, job
-  alerts, anything the reader could skip entirely.
+  request, a signature, a payment, an RSVP they have not answered, a hard
+  deadline.
+- "fyi" — something happened or is scheduled and the reader should know, but
+  nothing is being asked of them: receipts, confirmations, deliveries,
+  automated reports, invitations they have already accepted.
 
-A message from a real person addressed to the reader is almost always "needs"
-or "notifications", never "noise". Automated mail is only "needs" when it
-demands action by a date (a failed payment, an expiring card).
+A message from a real person addressed to the reader is almost always "needs".
+Automated mail is only "needs" when it demands action by a date (a failed
+payment, an expiring card, an unanswered invitation).
 
-Set "when" only when the message states a deadline. Otherwise use "".
+Set "due" only when the message names a date the reader has to act by, and
+always as YYYY-MM-DD. Each message comes with the date it was received — use it
+to resolve anything relative, so "by Friday" in a message received on
+2026-08-25 becomes 2026-08-28. Never guess a date the message does not state.
 
 The recap names what actually needs the reader today. Two sentences at the
 very most, and shorter is better. Write plain declarative sentences. Never use
@@ -82,7 +92,7 @@ Return one item per input message, with ids copied exactly.`;
 
 type CacheShape = { recap: string; items: z.infer<typeof InsightSchema>["items"] };
 
-function cacheKey(day: string, messages: DigestMessage[]) {
+function cacheKey(day: string, messages: SignalMessage[]) {
   const digest = createHash("sha1")
     .update(`${PROMPT_VERSION}:${MODEL}:${messages.map((m) => m.id).join(",")}`)
     .digest("hex")
@@ -90,30 +100,30 @@ function cacheKey(day: string, messages: DigestMessage[]) {
   return `${day}-${digest}.json`;
 }
 
-const NOISE_LABELS = ["CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS"];
-
 /**
  * What we show when Claude is unavailable: the subject stands in for the
- * purpose and Gmail's own labels decide the band.
+ * purpose, and an unanswered invitation is the one thing worth promoting
+ * without a model to read the mail.
  */
-function heuristics(messages: DigestMessage[]): DayInsights {
+function heuristics(messages: SignalMessage[]): DayInsights {
   const byId: Record<string, Insight> = {};
 
   for (const message of messages) {
-    const noise = message.labels.some((label) => NOISE_LABELS.includes(label));
+    // An invitation nobody has answered is the one thing labels can settle.
+    const rsvp = message.invite?.status === "needs-action";
     const needs =
-      !noise && message.unread && message.labels.includes("IMPORTANT");
+      rsvp || (message.unread && message.labels.includes("IMPORTANT"));
 
     byId[message.id] = {
       purpose: message.subject,
-      when: "",
-      band: noise ? "noise" : needs ? "needs" : "notifications",
+      due: message.invite && !message.invite.allDay ? message.invite.start.slice(0, 10) : "",
+      band: needs ? "needs" : "fyi",
     };
   }
 
   const needsCount = Object.values(byId).filter((i) => i.band === "needs").length;
   const recap = messages.length
-    ? `${messages.length} arrived. ${needsCount || "None"} marked important and unread.`
+    ? `${messages.length} arrived. ${needsCount || "None"} look like they need you.`
     : "Nothing arrived.";
 
   return { recap, byId, source: "heuristic" };
@@ -133,7 +143,7 @@ export function tidyRecap(text: string) {
     .join(" ");
 }
 
-function shape(cached: CacheShape, messages: DigestMessage[]): DayInsights {
+function shape(cached: CacheShape, messages: SignalMessage[]): DayInsights {
   const fallback = heuristics(messages);
   const byId = { ...fallback.byId };
 
@@ -141,7 +151,9 @@ function shape(cached: CacheShape, messages: DigestMessage[]): DayInsights {
     if (!byId[item.id]) continue; // ignore ids Claude invented
     byId[item.id] = {
       purpose: item.purpose.trim() || byId[item.id].purpose,
-      when: item.when.trim(),
+      // Anything that isn't a plain date is dropped rather than shown: a bare
+      // weekday is ambiguous the moment you browse back a week.
+      due: /^\d{4}-\d{2}-\d{2}$/.test(item.due.trim()) ? item.due.trim() : "",
       band: item.band,
     };
   }
@@ -157,7 +169,7 @@ function shape(cached: CacheShape, messages: DigestMessage[]): DayInsights {
  */
 export async function fetchInsights(
   day: string,
-  messages: DigestMessage[],
+  messages: SignalMessage[],
   useAi = true,
 ): Promise<DayInsights> {
   if (messages.length === 0) {
@@ -179,10 +191,18 @@ export async function fetchInsights(
     from: message.from,
     fromEmail: message.fromEmail,
     subject: message.subject,
-    snippet: message.snippet,
-    receivedAt: message.receivedAt,
+    receivedOn: message.receivedAt.slice(0, 10),
     unread: message.unread,
-    labels: message.labels.filter((label) => label.startsWith("CATEGORY_")),
+    // The body, not just the snippet: a deadline is rarely in the first line.
+    body: message.text || message.snippet,
+    invite: message.invite
+      ? {
+          starts: message.invite.start,
+          location: message.invite.location,
+          yourReply: message.invite.status,
+          cancelled: message.invite.cancelled,
+        }
+      : undefined,
   }));
 
   try {
@@ -240,7 +260,7 @@ export async function readCachedInsight(
     const cached = await readCache<CacheShape>(file);
     const item = cached?.items.find((entry) => entry.id === id);
     if (item) {
-      return { purpose: item.purpose, when: item.when, band: item.band };
+      return { purpose: item.purpose, due: item.due, band: item.band };
     }
   }
   return null;

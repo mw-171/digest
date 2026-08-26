@@ -9,7 +9,9 @@ import * as Button from "@/app/component/ui/button";
 import { readCachedInsight } from "@/lib/digest-ai";
 import { isValidDay, toDayString } from "@/lib/day";
 import { isConversational, plainText, type ReadableBody } from "@/lib/email-body";
-import { fetchAccountEmail, fetchMessage, gmailThreadUrl } from "@/lib/gmail";
+import { formatEventTime } from "@/lib/day";
+import { fetchAccountEmail, fetchMessage } from "@/lib/gmail";
+import { gmailThreadUrl } from "@/lib/gmail-url";
 import { authorizedClient } from "@/lib/google";
 import { summarizeMessage } from "@/lib/message-ai";
 import type { FullMessage } from "@/lib/gmail";
@@ -116,13 +118,15 @@ export default async function MessagePage({
   // Not connected: the digest is where reconnecting starts.
   if (!auth) redirect("/");
 
-  const [message, insight, account] = await Promise.all([
-    fetchMessage(auth, id),
+  // The address first: an invite's ATTENDEE lines are matched against it to
+  // find out whether you have replied.
+  const account = await fetchAccountEmail(auth).catch(() => "");
+  const [message, insight] = await Promise.all([
+    fetchMessage(auth, id, account),
     readCachedInsight(day, id),
-    fetchAccountEmail(auth).catch(() => ""),
   ]);
 
-  const band = insight?.band ?? "notifications";
+  const band = insight?.band ?? "fyi";
   const received = new Date(message.receivedAt);
 
   return (
@@ -176,6 +180,26 @@ export default async function MessagePage({
             <p className="mt-4 break-words text-paragraph-sm text-text-sub-600">
               {message.subject}
             </p>
+          )}
+
+          {message.invite && (
+            <section className="mt-6 rounded-2xl border border-stroke-soft-200 p-5">
+              <Label>
+                {message.invite.cancelled ? "Cancelled event" : "Invitation"}
+              </Label>
+              <p className="mt-2 break-words text-label-md text-text-strong-950">
+                {message.invite.summary || message.subject}
+              </p>
+              <p className="mt-1 text-paragraph-sm text-text-sub-600">
+                {formatEventTime(message.invite.start, message.invite.allDay)}
+                {message.invite.location && ` · ${message.invite.location}`}
+              </p>
+              {message.invite.status === "needs-action" && !message.invite.cancelled && (
+                <p className="mt-3 text-label-xs text-text-soft-400">
+                  You haven&apos;t replied. RSVP from Gmail below.
+                </p>
+              )}
+            </section>
           )}
 
           <React.Suspense fallback={<ReadingSkeleton />}>

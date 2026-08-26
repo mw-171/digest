@@ -5,14 +5,33 @@ import Link from "next/link";
 
 import { SenderAvatar } from "./avatar-initials";
 import * as Accordion from "@/app/component/ui/accordion";
+import { eventDateBlock, formatDeadline, formatEventTime } from "@/lib/day";
 import { cn } from "@/utils/cn";
 import type { DigestItem } from "@/lib/digest";
+import { gmailThreadUrl } from "@/lib/gmail-url";
 
-function time(iso: string) {
-  return new Date(iso).toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+const CARD = cn(
+  "relative mb-[7px] flex min-h-[58px] w-full items-center gap-3 rounded-2xl bg-bg-white-0 p-[13px]",
+  "md:min-h-[68px] md:gap-4 md:px-5 md:py-4",
+  "transition-shadow duration-200 ease-out hover:shadow-regular-xs",
+  "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary-alpha-24",
+);
+
+/** The deadline chip. Nothing at all when the message named no date. */
+function Deadline({ due, day }: { due: string; day: string }) {
+  const deadline = formatDeadline(due, day);
+  if (!deadline) return null;
+
+  return (
+    <span
+      className={cn(
+        "shrink-0 whitespace-nowrap text-label-xs font-semibold",
+        deadline.late ? "text-text-soft-400" : "text-primary-base",
+      )}
+    >
+      {deadline.label}
+    </span>
+  );
 }
 
 /**
@@ -105,44 +124,133 @@ export function BandSection({
 
   return (
     <Band title={title} count={items.length} muted={muted} defaultOpen={defaultOpen}>
-      {items.map((item) => (
-        <Link
-          key={item.id}
-          href={`/message/${item.id}?date=${day}`}
-          className={cn(
-            "mb-[7px] flex min-h-[58px] w-full items-center gap-3 rounded-2xl bg-bg-white-0 p-[13px]",
-            "md:min-h-[68px] md:gap-4 md:px-5 md:py-4",
-            "transition-shadow duration-200 ease-out hover:shadow-regular-xs",
-            "outline-none focus-visible:ring-2 focus-visible:ring-primary-alpha-24",
-          )}
-        >
-          <SenderAvatar name={item.from} email={item.fromEmail} band={item.band} />
-          <span className="min-w-0 flex-1 overflow-hidden md:flex md:items-baseline md:gap-6">
-            <span className="block truncate text-label-sm font-semibold text-text-strong-950 md:flex-1 md:text-label-md">
-              {item.purpose}
-            </span>
-            <span className="mt-0.5 flex items-baseline gap-[7px] md:mt-0 md:w-64 md:shrink-0 md:justify-end lg:w-80">
-              <span className="truncate text-label-xs text-text-sub-600">
-                {item.from}
-              </span>
-              {item.when ? (
-                <span className="shrink-0 whitespace-nowrap text-label-xs font-semibold text-primary-base">
-                  {item.when}
-                </span>
-              ) : (
-                <span className="shrink-0 text-label-xs text-text-soft-400">
-                  {time(item.receivedAt)}
-                </span>
-              )}
-            </span>
-          </span>
-        </Link>
-      ))}
+      {items.map((item) =>
+        item.invite ? (
+          <InviteCard key={item.id} item={item} day={day} />
+        ) : (
+          <MessageCard key={item.id} item={item} day={day} />
+        ),
+      )}
     </Band>
   );
 }
 
-/** Noise collapses to one line per message — sender, then what it was. */
+/** The ordinary card: who it is from, what it wants, and by when. */
+function MessageCard({ item, day }: { item: DigestItem; day: string }) {
+  return (
+    <Link href={`/message/${item.id}?date=${day}`} className={cn(CARD, "outline-none")}>
+      <SenderAvatar name={item.from} email={item.fromEmail} band={item.band} />
+      <span className="min-w-0 flex-1 overflow-hidden md:flex md:items-baseline md:gap-6">
+        <span className="block truncate text-label-sm font-semibold text-text-strong-950 md:flex-1 md:text-label-md">
+          {item.purpose}
+        </span>
+        <span className="mt-0.5 flex items-baseline gap-[7px] md:mt-0 md:w-64 md:shrink-0 md:justify-end lg:w-80">
+          <span className="truncate text-label-xs text-text-sub-600">
+            {item.from}
+          </span>
+          <Deadline due={item.due} day={day} />
+        </span>
+      </span>
+    </Link>
+  );
+}
+
+/**
+ * An invitation, which is the one message where the four things you need are
+ * never in the subject line: the date, the time, the place, and whether you
+ * have answered. So it gets a date block instead of an avatar and a reply row
+ * instead of a deadline — while still living in whichever tier its state puts
+ * it in, rather than in a calendar section of its own.
+ *
+ * Accept and Decline open the invitation in Gmail rather than answering here:
+ * the app holds a read-only Gmail scope, and RSVP is a write.
+ */
+function InviteCard({ item, day }: { item: DigestItem; day: string }) {
+  const invite = item.invite!;
+  const block = eventDateBlock(invite.start, invite.allDay);
+  const unanswered = invite.status === "needs-action" && !invite.cancelled;
+  const gmail = gmailThreadUrl(item.threadId || item.id, "");
+
+  return (
+    <div className={cn(CARD, "flex-col items-stretch gap-0 py-0 md:py-0")}>
+      <div className="flex items-center gap-3 py-[13px] md:gap-4 md:py-4">
+        <span
+          aria-hidden
+          className={cn(
+            "flex size-10 shrink-0 flex-col items-center justify-center rounded-lg leading-none",
+            invite.cancelled
+              ? "bg-bg-weak-50 text-text-soft-400"
+              : "bg-primary-alpha-10 text-primary-base",
+          )}
+        >
+          <span className="text-label-sm font-semibold">{block.day}</span>
+          <span className="mt-0.5 text-[9px] uppercase tracking-[0.08em]">
+            {block.month}
+          </span>
+        </span>
+
+        <span className="min-w-0 flex-1 overflow-hidden">
+          {/* Stretched so the whole card opens the message, without nesting a
+              link inside a link the way a wrapping <a> would. */}
+          <Link
+            href={`/message/${item.id}?date=${day}`}
+            className="block truncate text-label-sm font-semibold text-text-strong-950 outline-none after:absolute after:inset-0 focus-visible:underline md:text-label-md"
+          >
+            {invite.cancelled && "Cancelled: "}
+            {invite.summary || item.purpose}
+          </Link>
+          <span className="mt-0.5 flex items-baseline gap-[7px] text-label-xs text-text-sub-600">
+            <span className="truncate">
+              {formatEventTime(invite.start, invite.allDay)}
+              {invite.location && ` · ${invite.location}`}
+            </span>
+          </span>
+        </span>
+
+        {!unanswered && !invite.cancelled && invite.status !== "unknown" && (
+          <span className="shrink-0 text-label-xs text-text-soft-400">
+            {invite.status === "accepted"
+              ? "Going"
+              : invite.status === "declined"
+                ? "Not going"
+                : "Maybe"}
+          </span>
+        )}
+      </div>
+
+      {unanswered && (
+        <div className="relative z-10 flex gap-2 border-t border-stroke-soft-200 py-2.5">
+          <a
+            href={gmail}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg bg-primary-base px-3 py-1.5 text-label-xs font-semibold text-static-white outline-none hover:bg-primary-darker focus-visible:ring-2 focus-visible:ring-primary-alpha-24"
+          >
+            Accept
+          </a>
+          <a
+            href={gmail}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg px-3 py-1.5 text-label-xs font-semibold text-text-sub-600 ring-1 ring-inset ring-stroke-soft-200 outline-none hover:bg-bg-weak-50 focus-visible:ring-2 focus-visible:ring-primary-alpha-24"
+          >
+            Decline
+          </a>
+          <span className="ml-auto self-center text-label-xs text-text-soft-400">
+            Replies open in Gmail
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Noise: one dim row at the bottom of the page, carrying nothing but a count
+ * until it is tapped. These messages were never read — Gmail's labels put them
+ * here, and only their headers were ever fetched — so a sender and a subject
+ * is all there is to show.
+ */
 export function NoiseSection({
   items,
   day,

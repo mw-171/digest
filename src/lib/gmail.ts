@@ -1,6 +1,7 @@
 import { google, type gmail_v1 } from "googleapis";
-import { readableBody, type ReadableBody } from "@/lib/email-body";
+import { plainText, readableBody, type ReadableBody } from "@/lib/email-body";
 import type { OAuthClient } from "@/lib/google";
+import { parseInvite, type Invite } from "@/lib/invite";
 
 /** Gmail's own tab categories, from the CATEGORY_* system labels. */
 export const CATEGORIES = [
@@ -20,12 +21,13 @@ const CATEGORY_LABELS: Record<string, Category> = {
   CATEGORY_FORUMS: "forums",
 };
 
-/** Bulk mail: never correspondence, so it stays out of the digest by default. */
+/**
+ * Noise, decided by Gmail rather than by us. Promotions, social and forums are
+ * bulk mail by definition, and Gmail's own sorting is free, instant and
+ * already tuned to this mailbox — so the model never sees these and never gets
+ * a say in the matter.
+ */
 export const BULK_CATEGORIES: Category[] = ["promotions", "social", "forums"];
-
-export function isBulk(category: Category) {
-  return BULK_CATEGORIES.includes(category);
-}
 
 /**
  * A message carries at most one CATEGORY_* label. Mail has none when the
@@ -40,8 +42,9 @@ export function categoryOf(labels: string[]): Category {
   return "personal";
 }
 
-/** Gmail query fragment that drops bulk mail before it is ever fetched. */
-const WITHOUT_BULK = BULK_CATEGORIES.map((c) => `-category:${c}`).join(" ");
+/** Everything that is not bulk mail. Braces are Gmail's OR group. */
+const SIGNAL_FILTER = BULK_CATEGORIES.map((c) => `-category:${c}`).join(" ");
+const NOISE_FILTER = `{${BULK_CATEGORIES.map((c) => `category:${c}`).join(" ")}}`;
 
 export type DigestMessage = {
   id: string;
@@ -54,19 +57,35 @@ export type DigestMessage = {
   unread: boolean;
   labels: string[];
   category: Category;
+  /** Set when the message carries a calendar invitation. */
+  invite: Invite | null;
 };
 
-export type Digest = {
+/** A signal message, read in full — `text` is what the model is given. */
+export type SignalMessage = DigestMessage & { text: string };
+
+export type DayMail = {
   day: string;
-  messages: DigestMessage[];
-  /** True when the day had more messages than `max`. */
+  /** Read in full and triaged. */
+  signal: SignalMessage[];
+  /** Headers only. Never read, never sent to the model, never expanded by default. */
+  noise: DigestMessage[];
+  /** True when the day held more signal than `max`. */
   truncated: boolean;
-  /** Bulk messages left out of the fetch entirely. */
-  hiddenBulk: number;
 };
 
-const MAX_MESSAGES = 100;
-const CONCURRENCY = 8;
+/**
+ * How much of a day we read. Signal is capped low because each one costs a
+ * full `messages.get` *and* a slice of the model's context; one heavy day
+ * should not be able to blow up the digest's latency.
+ */
+const SIGNAL_MAX = 50;
+const NOISE_MAX = 120;
+const VOLUME_MAX = 100;
+const CONCURRENCY = 12;
+
+/** Enough of a body for the model to see what the message is about. */
+const BODY_EXCERPT = 4000;
 
 
 /**
@@ -148,81 +167,113 @@ async function listMessageIds(
   return { ids: ids.slice(0, max), truncated: ids.length > max };
 }
 
-export async function fetchDigest(
+/** Headers and snippet, with no body downloaded. What noise gets. */
+function headline(data: gmail_v1.Schema$Message, id: string): DigestMessage {
+  const { from, fromEmail } = parseFrom(header(data, "From"));
+  return {
+    id: data.id ?? id,
+    threadId: data.threadId ?? "",
+    from,
+    fromEmail,
+    subject: header(data, "Subject") || "(no subject)",
+    snippet: data.snippet ?? "",
+    receivedAt: new Date(Number(data.internalDate ?? 0)).toISOString(),
+    unread: data.labelIds?.includes("UNREAD") ?? false,
+    labels: data.labelIds ?? [],
+    category: categoryOf(data.labelIds ?? []),
+    invite: null,
+  };
+}
+
+const byNewest = (a: DigestMessage, b: DigestMessage) =>
+  b.receivedAt.localeCompare(a.receivedAt);
+
+/**
+ * One day of mail, already split.
+ *
+ * The split happens at fetch time and on Gmail's own labels, which is what
+ * makes the cheap half cheap: noise is two hundred bytes of headers each, is
+ * never read, and never reaches the model. Only signal is downloaded in full,
+ * and only signal is triaged.
+ *
+ * `reader` is the connected address — the one an invite's ATTENDEE lines are
+ * matched against to find out whether *you* have replied.
+ */
+export async function fetchDay(
   auth: OAuthClient,
   day: string,
   {
-    max = MAX_MESSAGES,
-    includeBulk = false,
-  }: { max?: number; includeBulk?: boolean } = {},
-): Promise<Digest> {
+    reader = "",
+    max = SIGNAL_MAX,
+    noiseMax = NOISE_MAX,
+  }: { reader?: string; max?: number; noiseMax?: number } = {},
+): Promise<DayMail> {
   const gmail = google.gmail({ version: "v1", auth });
 
-  // Excluding bulk in the query rather than after the fetch means promotions
-  // can't eat the message cap, and none of them cost a messages.get.
-  const [{ ids, truncated }, hiddenBulk] = await Promise.all([
-    listMessageIds(gmail, day, max, includeBulk ? "" : WITHOUT_BULK),
-    includeBulk ? Promise.resolve(0) : countBulk(gmail, day, max),
+  const [signalIds, noiseIds] = await Promise.all([
+    listMessageIds(gmail, day, max, SIGNAL_FILTER),
+    listMessageIds(gmail, day, noiseMax, NOISE_FILTER),
   ]);
 
-  const messages = await mapWithLimit(ids, CONCURRENCY, async (id) => {
-    const { data } = await gmail.users.messages.get({
-      userId: "me",
-      id,
-      format: "metadata", // headers + snippet only; no bodies to download
-      metadataHeaders: ["From", "Subject", "Date"],
-    });
+  const [signal, noise] = await Promise.all([
+    mapWithLimit(signalIds.ids, CONCURRENCY, async (id) => {
+      const { data } = await gmail.users.messages.get({
+        userId: "me",
+        id,
+        format: "full", // the body is the whole point of the signal half
+      });
 
-    const { from, fromEmail } = parseFrom(header(data, "From"));
-    return {
-      id: data.id ?? id,
-      threadId: data.threadId ?? "",
-      from,
-      fromEmail,
-      subject: header(data, "Subject") || "(no subject)",
-      snippet: data.snippet ?? "",
-      receivedAt: new Date(Number(data.internalDate ?? 0)).toISOString(),
-      unread: data.labelIds?.includes("UNREAD") ?? false,
-      labels: data.labelIds ?? [],
-      category: categoryOf(data.labelIds ?? []),
-    } satisfies DigestMessage;
-  });
+      const payload = data.payload ?? undefined;
+      const body = payload
+        ? readableBody(findPart(payload, "text/html"), findPart(payload, "text/plain"))
+        : null;
+      const ics = payload ? findPart(payload, "text/calendar", true) : "";
 
-  messages.sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
-  return { day, messages, truncated, hiddenBulk };
+      return {
+        ...headline(data, id),
+        invite: ics ? parseInvite(ics, reader) : null,
+        text: (body ? plainText(body.blocks) : data.snippet ?? "").slice(
+          0,
+          BODY_EXCERPT,
+        ),
+      } satisfies SignalMessage;
+    }),
+
+    mapWithLimit(noiseIds.ids, CONCURRENCY, async (id) => {
+      const { data } = await gmail.users.messages.get({
+        userId: "me",
+        id,
+        format: "metadata", // headers + snippet only; no bodies to download
+        metadataHeaders: ["From", "Subject", "Date"],
+      });
+      return headline(data, id);
+    }),
+  ]);
+
+  signal.sort(byNewest);
+  noise.sort(byNewest);
+  return { day, signal, noise, truncated: signalIds.truncated };
 }
-
 
 export type DayVolume = { day: string; count: number; truncated: boolean };
 
 /**
  * How much mail arrived on each of `days`. Used for the week's volume bars, so
- * a count is all we need — this lists ids without fetching any message.
+ * a count is all we need — this lists ids without fetching any message. Bulk
+ * is left out: the bars are meant to show how busy a day was, and forty
+ * promotions do not make a busy day.
  */
 export async function fetchVolumes(
   auth: OAuthClient,
   days: string[],
-  {
-    max = MAX_MESSAGES,
-    includeBulk = false,
-  }: { max?: number; includeBulk?: boolean } = {},
+  { max = VOLUME_MAX }: { max?: number } = {},
 ): Promise<DayVolume[]> {
   const gmail = google.gmail({ version: "v1", auth });
-  const filter = includeBulk ? "" : WITHOUT_BULK;
 
   return mapWithLimit(days, CONCURRENCY, async (day) => {
-    const { ids, truncated } = await listMessageIds(gmail, day, max, filter);
+    const { ids, truncated } = await listMessageIds(gmail, day, max, SIGNAL_FILTER);
     return { day, count: ids.length, truncated };
   });
-}
-
-/** How much bulk mail the day holds — ids only, so it costs one list call. */
-async function countBulk(gmail: gmail_v1.Gmail, day: string, max: number) {
-  // Braces are Gmail's OR group. A bare `OR` would bind to the neighbouring
-  // terms instead and take the date range with it.
-  const filter = BULK_CATEGORIES.map((c) => `category:${c}`).join(" ");
-  const { ids } = await listMessageIds(gmail, day, max, `{${filter}}`);
-  return ids.length;
 }
 
 export type FullMessage = DigestMessage & {
@@ -257,17 +308,22 @@ function decodePart(part: gmail_v1.Schema$MessagePart) {
 
 /**
  * The first part of type `wanted` that is actual body text. Attachments are
- * skipped even when they are text — an attached .txt is not the message.
+ * skipped even when they are text — an attached .txt is not the message — but
+ * an invite is often attached as `invite.ics`, so `attachments` opts back in.
  */
-function findPart(part: gmail_v1.Schema$MessagePart, wanted: string): string {
+function findPart(
+  part: gmail_v1.Schema$MessagePart,
+  wanted: string,
+  attachments = false,
+): string {
   const disposition = part.headers
     ?.find((h) => h.name?.toLowerCase() === "content-disposition")
     ?.value?.toLowerCase();
-  if (disposition?.startsWith("attachment")) return "";
+  if (!attachments && disposition?.startsWith("attachment")) return "";
 
   if (part.mimeType === wanted && part.body?.data) return decodePart(part);
   for (const child of part.parts ?? []) {
-    const found = findPart(child, wanted);
+    const found = findPart(child, wanted, attachments);
     if (found) return found;
   }
   return "";
@@ -277,6 +333,7 @@ function findPart(part: gmail_v1.Schema$MessagePart, wanted: string): string {
 export async function fetchMessage(
   auth: OAuthClient,
   id: string,
+  reader = "",
 ): Promise<FullMessage> {
   const gmail = google.gmail({ version: "v1", auth });
   const { data } = await gmail.users.messages.get({
@@ -286,25 +343,17 @@ export async function fetchMessage(
   });
 
   const payload = data.payload ?? undefined;
-  const { from, fromEmail } = parseFrom(header(data, "From"));
 
   // Both alternatives, then one readable rendition of whichever is better.
   const body = payload
     ? readableBody(findPart(payload, "text/html"), findPart(payload, "text/plain"))
     : { blocks: [], truncated: false, source: "none" as const };
+  const ics = payload ? findPart(payload, "text/calendar", true) : "";
 
   return {
-    id: data.id ?? id,
-    threadId: data.threadId ?? "",
-    from,
-    fromEmail,
+    ...headline(data, id),
     to: header(data, "To"),
-    subject: header(data, "Subject") || "(no subject)",
-    snippet: data.snippet ?? "",
-    receivedAt: new Date(Number(data.internalDate ?? 0)).toISOString(),
-    unread: data.labelIds?.includes("UNREAD") ?? false,
-    labels: data.labelIds ?? [],
-    category: categoryOf(data.labelIds ?? []),
+    invite: ics ? parseInvite(ics, reader) : null,
     body,
   };
 }
@@ -314,15 +363,4 @@ export async function fetchAccountEmail(auth: OAuthClient) {
   const gmail = google.gmail({ version: "v1", auth });
   const { data } = await gmail.users.getProfile({ userId: "me" });
   return data.emailAddress ?? "";
-}
-
-/**
- * A link that opens the real thing. Gmail accepts an address where the `u/0`
- * account index normally goes, which is what makes this land in the right
- * mailbox for someone signed into several — and on a phone the same URL hands
- * off to the Gmail app rather than the mobile web view.
- */
-export function gmailThreadUrl(threadId: string, account: string) {
-  const who = account ? encodeURIComponent(account) : "0";
-  return `https://mail.google.com/mail/u/${who}/#all/${threadId}`;
 }

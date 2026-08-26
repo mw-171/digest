@@ -1,18 +1,12 @@
 import { toDayString } from "@/lib/day";
 import type { DayDigest, WeekDay } from "@/lib/digest";
 
-export type DigestOptions = { useAi: boolean; includeBulk: boolean };
+export type DigestOptions = { useAi: boolean };
 
 export const dayKey = (day: string, options: DigestOptions) =>
-  [
-    "day",
-    day,
-    options.useAi ? "ai" : "plain",
-    options.includeBulk ? "all" : "nobulk",
-  ] as const;
+  ["day", day, options.useAi ? "ai" : "plain"] as const;
 
-export const weekKey = (day: string, options: DigestOptions) =>
-  ["week", day, options.includeBulk ? "all" : "nobulk"] as const;
+export const weekKey = (day: string) => ["week", day] as const;
 
 export class DigestRequestError extends Error {
   status: number;
@@ -50,13 +44,12 @@ async function getJson<T>(url: string): Promise<T> {
  * Within a session, paging back to a day you have already opened is instant
  * and costs nothing.
  *
- * Both settings are part of the key, so flipping either toggle swaps between
- * cached views of the same day rather than throwing any of them away.
+ * The AI setting is part of the key, so flipping the toggle swaps between
+ * cached views of the same day rather than throwing either of them away.
  */
 export function dayQuery(day: string, options: DigestOptions) {
   const params = new URLSearchParams({ date: day });
   if (!options.useAi) params.set("ai", "0");
-  if (options.includeBulk) params.set("bulk", "1");
 
   return {
     queryKey: dayKey(day, options),
@@ -66,12 +59,11 @@ export function dayQuery(day: string, options: DigestOptions) {
 }
 
 /** Same rule for the week's volume bars. */
-export function weekQuery(day: string, options: DigestOptions) {
+export function weekQuery(day: string) {
   const params = new URLSearchParams({ date: day });
-  if (options.includeBulk) params.set("bulk", "1");
 
   return {
-    queryKey: weekKey(day, options),
+    queryKey: weekKey(day),
     queryFn: () => getJson<WeekDay[]>(`/api/week?${params}`),
     staleTime: Infinity,
   };

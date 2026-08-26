@@ -18,7 +18,6 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const date = request.nextUrl.searchParams.get("date") ?? toDayString();
   const useAi = request.nextUrl.searchParams.get("ai") !== "0";
-  const includeBulk = request.nextUrl.searchParams.get("bulk") === "1";
   if (!isValidDay(date) || date > toDayString()) {
     return json({ error: "Bad date." }, 400);
   }
@@ -28,7 +27,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    return json(await getDay(date, useAi, includeBulk));
+    return json(await getDay(date, useAi));
   } catch (error) {
     console.error("Could not build the digest", error);
     return json(

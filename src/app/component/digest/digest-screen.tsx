@@ -54,9 +54,9 @@ export function HeaderFrame({
   return (
     <header className="sticky top-0 z-10 border-b border-stroke-soft-200 bg-bg-white-0">
       <Column className="pb-5 pt-5 md:pb-7 md:pt-8">
-        <div className="flex items-baseline justify-between gap-3">
+        <div className="flex items-baseline items-center justify-between gap-3">
           <h1 className="min-w-0 break-words text-title-h4 tracking-[-0.035em] text-text-strong-950 md:text-title-h3">
-            {title.weekday} {title.dayOfMonth}
+            {title.weekday}
           </h1>
           <CalendarSheet
             day={day}
@@ -82,7 +82,7 @@ export function RecapLine({ text }: { text: string }) {
   );
 }
 
-export function Empty({ day }: { day: string }) {
+export function Empty({ day, noise = 0 }: { day: string; noise?: number }) {
   const title = formatDayTitle(day);
 
   return (
@@ -96,7 +96,9 @@ export function Empty({ day }: { day: string }) {
         Nothing needs you
       </p>
       <p className="mt-2 text-paragraph-sm text-text-sub-600">
-        No mail arrived on {title.full}.
+        {noise > 0
+          ? `Only promotions and newsletters arrived on ${title.full}.`
+          : `No mail arrived on ${title.full}.`}
       </p>
       <Button.Root
         asChild
@@ -112,55 +114,32 @@ export function Empty({ day }: { day: string }) {
 }
 
 /** Urgency bands, then the collapsed noise row. */
-export function BandsList({
-  digest,
-  onIncludeBulk,
-}: {
-  digest: DayDigest;
-  /** Supplied when bulk mail is currently filtered out. */
-  onIncludeBulk?: () => void;
-}) {
-  const hidden = onIncludeBulk && digest.hiddenBulk > 0 && (
-    <button
-      type="button"
-      onClick={onIncludeBulk}
-      className="flex w-full items-center gap-2.5 py-4 text-left text-label-xs text-text-soft-400 outline-none hover:text-text-sub-600"
-    >
-      <span className="size-[9px] shrink-0 rounded-[3px] bg-bg-soft-200" />
-      {digest.hiddenBulk} from promotions, social and forums
-      <span className="h-px flex-1 bg-stroke-soft-200" />
-      <span className="underline">Show</span>
-    </button>
-  );
-
-  if (digest.total === 0) {
-    return (
-      <>
-        <Empty day={digest.day} />
-        {hidden && <Column className="pb-4">{hidden}</Column>}
-      </>
-    );
+export function BandsList({ digest }: { digest: DayDigest }) {
+  if (digest.total === 0 && digest.noise.length === 0) {
+    return <Empty day={digest.day} />;
   }
 
   return (
     <Column className="flex-1 pb-4 pt-1.5">
-      {digest.bands.map((band) => (
-        <BandSection
-          key={band.key}
-          title={band.title}
-          items={band.items}
-          day={digest.day}
-          muted={band.key !== "needs"}
-        />
-      ))}
+      {digest.total === 0 ? (
+        <Empty day={digest.day} noise={digest.noise.length} />
+      ) : (
+        digest.bands.map((band) => (
+          <BandSection
+            key={band.key}
+            title={band.title}
+            items={band.items}
+            day={digest.day}
+            muted={band.key !== "needs"}
+          />
+        ))
+      )}
 
       <NoiseSection items={digest.noise} day={digest.day} />
 
-      {hidden}
-
       <p className="py-7 text-center text-label-xs text-text-soft-400">
         That was the day.
-        {digest.truncated && " (first 100 messages)"}
+        {digest.truncated && " (first 50 messages)"}
       </p>
     </Column>
   );
@@ -222,3 +201,4 @@ export function DigestScreen({ digest }: { digest: Digest }) {
     </Shell>
   );
 }
+

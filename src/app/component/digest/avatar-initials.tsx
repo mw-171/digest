@@ -15,7 +15,7 @@ function initialsOf(name: string) {
 
 const COLOR: Record<Band, React.ComponentProps<typeof Avatar.Root>["color"]> = {
   needs: "purple",
-  notifications: "gray",
+  fyi: "gray",
   noise: "gray",
 };
 

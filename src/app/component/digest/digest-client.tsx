@@ -12,7 +12,7 @@ import {
 } from "./skeletons";
 import { WeekStrip } from "./week-strip";
 import * as Button from "@/app/component/ui/button";
-import { aiCookieValue, bulkCookieValue } from "@/lib/preferences";
+import { aiCookieValue } from "@/lib/preferences";
 import {
   dayQuery,
   previousDay,
@@ -50,22 +50,17 @@ export function DigestClient({
   initialDay,
   today,
   initialAi,
-  initialBulk,
 }: {
   initialDay: string;
   today: string;
   initialAi: boolean;
-  initialBulk: boolean;
 }) {
   const [day, setDay] = React.useState(initialDay);
-  const [options, setOptions] = React.useState<DigestOptions>({
-    useAi: initialAi,
-    includeBulk: initialBulk,
-  });
+  const [options, setOptions] = React.useState<DigestOptions>({ useAi: initialAi });
   const queryClient = useQueryClient();
 
   const dayResult = useQuery(dayQuery(day, options));
-  const weekResult = useQuery(weekQuery(day, options));
+  const weekResult = useQuery(weekQuery(day));
 
   const select = React.useCallback((next: string) => {
     if (next > today) return;
@@ -116,17 +111,7 @@ export function DigestClient({
       {dayResult.isError ? (
         <ErrorPanel error={dayResult.error} />
       ) : dayResult.data ? (
-        <BandsList
-          digest={dayResult.data}
-          onIncludeBulk={
-            options.includeBulk
-              ? undefined
-              : () => {
-                  document.cookie = bulkCookieValue(true);
-                  setOptions((current) => ({ ...current, includeBulk: true }));
-                }
-          }
-        />
+        <BandsList digest={dayResult.data} />
       ) : (
         <BandsSkeleton />
       )}
@@ -134,25 +119,15 @@ export function DigestClient({
       <Footer
         source={dayResult.data?.source}
         toggle={
-          <>
-            <Toggle
-              value={options.useAi}
-              label={`AI triage ${options.useAi ? "on" : "off"}`}
-              onChange={(next) => {
-                // The cookie is what stops the *next* page load calling out.
-                document.cookie = aiCookieValue(next);
-                setOptions((current) => ({ ...current, useAi: next }));
-              }}
-            />
-            <Toggle
-              value={options.includeBulk}
-              label="Promotions & forums"
-              onChange={(next) => {
-                document.cookie = bulkCookieValue(next);
-                setOptions((current) => ({ ...current, includeBulk: next }));
-              }}
-            />
-          </>
+          <Toggle
+            value={options.useAi}
+            label={`AI triage ${options.useAi ? "on" : "off"}`}
+            onChange={(next) => {
+              // The cookie is what stops the *next* page load calling out.
+              document.cookie = aiCookieValue(next);
+              setOptions({ useAi: next });
+            }}
+          />
         }
       />
     </Shell>

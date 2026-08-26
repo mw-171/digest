@@ -3,12 +3,7 @@ import { DigestClient } from "./component/digest/digest-client";
 import { Footer, Shell } from "./component/digest/digest-screen";
 import { cookies } from "next/headers";
 
-import {
-  AI_COOKIE,
-  BULK_COOKIE,
-  parseAiCookie,
-  parseBulkCookie,
-} from "@/lib/preferences";
+import { AI_COOKIE, parseAiCookie } from "@/lib/preferences";
 import { isValidDay, toDayString } from "@/lib/day";
 import { authorizedClient, isConfigured, redirectUri } from "@/lib/google";
 
@@ -60,7 +55,6 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       initialDay={day}
       today={today}
       initialAi={parseAiCookie(jar.get(AI_COOKIE)?.value)}
-      initialBulk={parseBulkCookie(jar.get(BULK_COOKIE)?.value)}
     />
   );
 }

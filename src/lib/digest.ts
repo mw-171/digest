@@ -1,11 +1,11 @@
 import { cache } from "react";
 
 import { toDayString, weekWindow } from "@/lib/day";
-import { fetchInsights, type Band, type Insight } from "@/lib/digest-ai";
+import { fetchInsights, TRIAGE_BANDS, type Band, type Insight } from "@/lib/digest-ai";
 import {
-  fetchDigest,
+  fetchAccountEmail,
+  fetchDay,
   fetchVolumes,
-  isBulk,
   type DigestMessage,
 } from "@/lib/gmail";
 import { authorizedClient } from "@/lib/google";
@@ -34,19 +34,18 @@ export type DayDigest = {
   day: string;
   recap: string;
   source: "claude" | "heuristic";
+  /** Signal only. Noise is counted by the length of its own list. */
   total: number;
   truncated: boolean;
   bands: BandGroup[];
   noise: DigestItem[];
-  /** Bulk messages excluded from this fetch, when bulk is switched off. */
-  hiddenBulk: number;
 };
 
 export type Digest = DayDigest & { week: WeekDay[] };
 
 const BAND_TITLES: Record<Band, string> = {
   needs: "NEEDS YOU",
-  notifications: "NOTIFICATIONS",
+  fyi: "FYI",
   noise: "NOISE",
 };
 
@@ -65,11 +64,10 @@ async function client() {
  *
  * `cache` dedupes within a render, so several components may call these freely.
  */
-export const getWeek = cache(
-  async (day: string, includeBulk = false): Promise<WeekDay[]> => {
+export const getWeek = cache(async (day: string): Promise<WeekDay[]> => {
     const today = toDayString();
     const days = weekWindow(day, today);
-    const volumes = await fetchVolumes(await client(), days, { includeBulk });
+    const volumes = await fetchVolumes(await client(), days);
     const busiest = Math.max(...volumes.map((v) => v.count), 1);
 
     return days.map((d) => {
@@ -91,32 +89,33 @@ export const getWeek = cache(
   },
 );
 
+/** The connected address, needed to read your own reply off an invitation. */
+const reader = cache(async () => fetchAccountEmail(await client()).catch(() => ""));
+
 export const getDay = cache(
-  async (
-    day: string,
-    useAi = true,
-    includeBulk = false,
-  ): Promise<DayDigest> => {
-    const { messages, truncated, hiddenBulk } = await fetchDigest(
-      await client(),
-      day,
-      { includeBulk },
-    );
-    const insights = await fetchInsights(day, messages, useAi);
+  async (day: string, useAi = true): Promise<DayDigest> => {
+    const auth = await client();
+    const { signal, noise, truncated } = await fetchDay(auth, day, {
+      reader: await reader(),
+    });
 
-    const items: DigestItem[] = messages.map((message) => {
-      const insight = insights.byId[message.id] ?? {
-        purpose: message.subject,
-        when: "",
-        band: "notifications" as const,
-      };
+    // Only signal is triaged. Noise was settled by Gmail's labels before any
+    // of it was fetched, and asking the model to confirm that would cost a
+    // round trip to learn what a label already said.
+    const insights = await fetchInsights(day, signal, useAi);
 
-      // Gmail's own categories beat the model here: promotions, social and
-      // forums are noise by definition, whatever the subject line claims.
+    const items: DigestItem[] = signal.map(({ text, ...message }) => {
+      // The body stays on the server. It was downloaded for the model, and
+      // fifty of them would dwarf everything else the page sends.
+      void text;
+
       return {
         ...message,
-        ...insight,
-        band: isBulk(message.category) ? ("noise" as const) : insight.band,
+        ...(insights.byId[message.id] ?? {
+          purpose: message.subject,
+          due: "",
+          band: "fyi" as const,
+        }),
       };
     });
 
@@ -126,16 +125,20 @@ export const getDay = cache(
       day,
       recap: insights.recap,
       source: insights.source,
-      total: messages.length,
+      total: signal.length,
       truncated,
-      bands: (["needs", "notifications"] as const).map((key) => ({
+      bands: TRIAGE_BANDS.map((key) => ({
         key,
         title: BAND_TITLES[key],
         items: inBand(key),
       })),
-      noise: inBand("noise"),
-      hiddenBulk,
+      // Headline only: noise has no body, no insight and no card.
+      noise: noise.map((message) => ({
+        ...message,
+        purpose: message.subject,
+        due: "",
+        band: "noise" as const,
+      })),
     };
   },
 );
-

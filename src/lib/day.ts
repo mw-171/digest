@@ -82,3 +82,69 @@ export function formatDayTitle(day: string) {
     }),
   };
 }
+
+const DAY_MS = 86_400_000;
+
+/** Whole days from `from` to `to`, both `YYYY-MM-DD`. */
+export function daysBetween(from: string, to: string) {
+  return Math.round(
+    (Date.parse(`${to}T00:00:00`) - Date.parse(`${from}T00:00:00`)) / DAY_MS,
+  );
+}
+
+/**
+ * A deadline, read from the day you are looking at rather than from now.
+ *
+ * Browsing back a week must not turn last Tuesday's "by tomorrow" into
+ * something a week overdue, so everything here counts from `day` — the date on
+ * screen. Only the two nearest days get a word; beyond that it is a real date,
+ * because a bare weekday name ("by Thu") is unreadable the moment the digest
+ * is not today's.
+ */
+export function formatDeadline(due: string, day: string) {
+  if (!isValidDay(due)) return null;
+
+  const offset = daysBetween(day, due);
+  if (offset === 0) return { label: "today", late: false };
+  if (offset === 1) return { label: "tomorrow", late: false };
+  if (offset === -1) return { label: "yesterday", late: true };
+
+  const date = new Date(`${due}T00:00:00`);
+  const stamp = date.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    // A year only earns its place when it isn't the one on screen.
+    ...(due.slice(0, 4) === day.slice(0, 4) ? {} : { year: "numeric" }),
+  });
+
+  return { label: offset > 0 ? `by ${stamp}` : stamp, late: offset < 0 };
+}
+
+/** "Thu 28 Aug" / "Thu 28 Aug, 10:00" — the invite card's line. */
+export function formatEventTime(start: string, allDay: boolean) {
+  const date = new Date(allDay ? `${start}T00:00:00` : start);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const stamp = date.toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+  if (allDay) return `${stamp}, all day`;
+
+  return `${stamp}, ${date.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  })}`;
+}
+
+/** The two lines of an invite's date block: "28" over "AUG". */
+export function eventDateBlock(start: string, allDay: boolean) {
+  const date = new Date(allDay ? `${start}T00:00:00` : start);
+  if (Number.isNaN(date.getTime())) return { day: "", month: "" };
+
+  return {
+    day: date.toLocaleDateString(undefined, { day: "numeric" }),
+    month: date.toLocaleDateString(undefined, { month: "short" }),
+  };
+}

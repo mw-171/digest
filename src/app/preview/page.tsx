@@ -10,9 +10,10 @@ function item(
   id: string,
   from: string,
   purpose: string,
-  when: string,
+  due: string,
   band: Band,
   hour: number,
+  invite: DigestItem["invite"] = null,
 ): DigestItem {
   return {
     id,
@@ -25,11 +26,13 @@ function item(
     unread: true,
     labels: [],
     category: band === "noise" ? "promotions" : "personal",
+    invite,
     purpose,
-    when,
+    due,
     band,
   };
 }
+
 
 const digest: Digest = {
   day: "2026-08-20",
@@ -37,31 +40,52 @@ const digest: Digest = {
   source: "claude",
   total: 9,
   truncated: false,
-  hiddenBulk: 0,
   bands: [
     {
       key: "needs",
       title: "NEEDS YOU",
       items: [
-        item("1", "Priya Raghavan", "Approve two contract clauses", "by Fri", "needs", 8),
-        item("2", "Marcus Lin", "Review the onboarding flow", "by Thu", "needs", 9),
+        item("1", "Priya Raghavan", "Approve two contract clauses", "2026-08-21", "needs", 8),
+        item("2", "Marcus Lin", "Review the onboarding flow", "2026-08-20", "needs", 9),
         item("3", "Devi Sharma", "Reply to an intro with Devi", "", "needs", 10),
+        // An unanswered invitation: same tier, its own card.
+        item("11", "Priya Raghavan", "Quarterly planning", "", "needs", 10, {
+          summary: "Quarterly planning with the platform team",
+          start: "2026-08-28T09:00:00.000Z",
+          end: "2026-08-28T10:00:00.000Z",
+          allDay: false,
+          location: "Conf room 4",
+          organizer: "Priya Raghavan",
+          status: "needs-action",
+          cancelled: false,
+        }),
       ],
     },
     {
-      key: "notifications",
-      title: "NOTIFICATIONS",
+      key: "fyi",
+      title: "FYI",
       items: [
-        item("4", "Stripe", "$4,182 payout on its way", "", "notifications", 6),
-        item("5", "Foster Dental", "Dentist booked, 3 Sept 10:15", "", "notifications", 11),
-        item("6", "Ramp", "Spend ran $212 over baseline", "", "notifications", 13),
+        item("4", "Stripe", "$4,182 payout on its way", "", "fyi", 6),
+        item("5", "Foster Dental", "Dentist booked, 3 Sept 10:15", "", "fyi", 11),
+        item("6", "Ramp", "Spend ran $212 over baseline", "", "fyi", 13),
+        // Answered, so it needs nothing — but still an invite card.
+        item("12", "Marcus Lin", "Design review", "", "fyi", 12, {
+          summary: "Design review",
+          start: "2026-08-21T15:30:00.000Z",
+          end: "2026-08-21T16:00:00.000Z",
+          allDay: false,
+          location: "Meet",
+          organizer: "Marcus Lin",
+          status: "accepted",
+          cancelled: false,
+        }),
         // Overflow stress case: an unbroken token far wider than the column.
         item(
           "10",
           "notifications-noreply-longsender@build.example-internal-services.com",
           "https://tracking.example.com/click?id=abcdefghijklmnopqrstuvwxyz0123456789",
           "",
-          "notifications",
+          "fyi",
           14,
         ),
       ],
