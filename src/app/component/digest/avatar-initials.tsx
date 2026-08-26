@@ -2,8 +2,10 @@
 
 import * as React from "react";
 
+import { CATEGORY_STYLE } from "./categories";
 import * as Avatar from "@/app/component/ui/avatar";
-import type { Band } from "@/lib/digest-ai";
+import { cn } from "@/utils/cn";
+import type { Category } from "@/lib/digest-ai";
 import { senderLogoUrl } from "@/lib/grouping";
 
 /** Initials for the sender, falling back to AlignUI's empty-user avatar. */
@@ -15,29 +17,28 @@ function initialsOf(name: string) {
 }
 
 /**
- * The same purple twice, at two strengths: FYI is quieter than Needs You
- * without becoming a different colour. Only noise is grey — it was never read.
+ * The sender's face, ringed by the lane the message landed in.
+ *
+ * Brands get their own logo, which is the picture a person actually recognises
+ * in a list; people get initials on their category's colour, because the only
+ * photo Gmail's read-only scope would give us is one we cannot fetch. Either
+ * way the ring carries the category — a logo sits on white and would otherwise
+ * say nothing about which lane it came from.
  */
-const TONE: Record<
-  Band,
-  { color: React.ComponentProps<typeof Avatar.Root>["color"]; className?: string }
-> = {
-  needs: { color: "purple" },
-  fyi: { color: "purple", className: "bg-purple-100 text-purple-900" },
-  noise: { color: "gray" },
-};
-
 export function SenderAvatar({
   name,
   email,
-  band,
+  category,
   size = "32",
+  ring = true,
 }: {
   name: string;
   /** The sender's address — where the logo comes from. */
   email?: string;
-  band: Band;
+  category: Category;
   size?: React.ComponentProps<typeof Avatar.Root>["size"];
+  /** Off where the surrounding UI already names the category. */
+  ring?: boolean;
 }) {
   const initials = initialsOf(name);
   const src = email ? senderLogoUrl(email) : null;
@@ -45,10 +46,15 @@ export function SenderAvatar({
   // sender in the same slot still gets its own attempt.
   const [failed, setFailed] = React.useState<string | null>(null);
 
-  const tone = TONE[band];
-
   return (
-    <Avatar.Root size={size} color={tone.color} className={tone.className}>
+    <Avatar.Root
+      size={size}
+      color={CATEGORY_STYLE[category].avatar}
+      className={cn(
+        ring && "ring-2 ring-offset-2 ring-offset-bg-white-0",
+        ring && CATEGORY_STYLE[category].ring,
+      )}
+    >
       {src && failed !== src ? (
         <Avatar.Image
           src={src}

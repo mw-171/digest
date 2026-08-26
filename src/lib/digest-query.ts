@@ -11,7 +11,7 @@ export type DigestOptions = { useAi: boolean };
  * it — a stored digest from before `dueKind` existed would render dates that
  * cannot be labelled.
  */
-export const CACHE_VERSION = "4";
+export const CACHE_VERSION = "5";
 
 /** How long a persisted digest is worth restoring before it is just history. */
 export const CACHE_MAX_AGE = 24 * 60 * 60 * 1000;

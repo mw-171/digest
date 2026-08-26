@@ -4,16 +4,16 @@ import type { OAuthClient } from "@/lib/google";
 import { parseInvite, type Invite } from "@/lib/invite";
 
 /** Gmail's own tab categories, from the CATEGORY_* system labels. */
-export const CATEGORIES = [
+export const GMAIL_CATEGORIES = [
   "personal",
   "updates",
   "promotions",
   "social",
   "forums",
 ] as const;
-export type Category = (typeof CATEGORIES)[number];
+export type GmailCategory = (typeof GMAIL_CATEGORIES)[number];
 
-const CATEGORY_LABELS: Record<string, Category> = {
+const CATEGORY_LABELS: Record<string, GmailCategory> = {
   CATEGORY_PERSONAL: "personal",
   CATEGORY_UPDATES: "updates",
   CATEGORY_PROMOTIONS: "promotions",
@@ -22,19 +22,19 @@ const CATEGORY_LABELS: Record<string, Category> = {
 };
 
 /**
- * Noise, decided by Gmail rather than by us. Promotions, social and forums are
- * bulk mail by definition, and Gmail's own sorting is free, instant and
- * already tuned to this mailbox — so the model never sees these and never gets
- * a say in the matter.
+ * Bulk mail, decided by Gmail rather than by us. Promotions, social and forums
+ * are advertising and mailing lists by definition, and Gmail's own sorting is
+ * free, instant and already tuned to this mailbox — so these keep the category
+ * their label gave them and no body is ever downloaded for them.
  */
-export const BULK_CATEGORIES: Category[] = ["promotions", "social", "forums"];
+export const BULK_CATEGORIES: GmailCategory[] = ["promotions", "social", "forums"];
 
 /**
  * A message carries at most one CATEGORY_* label. Mail has none when the
  * account has tabs switched off, which reads as personal — the right default,
  * since that account isn't sorting bulk mail away either.
  */
-export function categoryOf(labels: string[]): Category {
+export function categoryOf(labels: string[]): GmailCategory {
   for (const label of labels) {
     const category = CATEGORY_LABELS[label];
     if (category) return category;
@@ -44,7 +44,7 @@ export function categoryOf(labels: string[]): Category {
 
 /** Everything that is not bulk mail. Braces are Gmail's OR group. */
 const SIGNAL_FILTER = BULK_CATEGORIES.map((c) => `-category:${c}`).join(" ");
-const NOISE_FILTER = `{${BULK_CATEGORIES.map((c) => `category:${c}`).join(" ")}}`;
+const BULK_FILTER = `{${BULK_CATEGORIES.map((c) => `category:${c}`).join(" ")}}`;
 
 export type DigestMessage = {
   id: string;
@@ -56,7 +56,8 @@ export type DigestMessage = {
   receivedAt: string; // ISO
   unread: boolean;
   labels: string[];
-  category: Category;
+  /** Which of Gmail's own tabs the message landed in. */
+  tab: GmailCategory;
   /** Set when the message carries a calendar invitation. */
   invite: Invite | null;
 };
@@ -68,8 +69,8 @@ export type DayMail = {
   day: string;
   /** Read in full and triaged. */
   signal: SignalMessage[];
-  /** Headers only. Never read, never sent to the model, never expanded by default. */
-  noise: DigestMessage[];
+  /** Headers only. The body is never downloaded and never read. */
+  bulk: DigestMessage[];
   /** True when the day held more signal than `max`. */
   truncated: boolean;
 };
@@ -80,7 +81,7 @@ export type DayMail = {
  * should not be able to blow up the digest's latency.
  */
 const SIGNAL_MAX = 50;
-const NOISE_MAX = 120;
+const BULK_MAX = 120;
 const VOLUME_MAX = 100;
 const CONCURRENCY = 12;
 
@@ -167,7 +168,7 @@ async function listMessageIds(
   return { ids: ids.slice(0, max), truncated: ids.length > max };
 }
 
-/** Headers and snippet, with no body downloaded. What noise gets. */
+/** Headers and snippet, with no body downloaded. What bulk mail gets. */
 function headline(data: gmail_v1.Schema$Message, id: string): DigestMessage {
   const { from, fromEmail } = parseFrom(header(data, "From"));
   return {
@@ -180,7 +181,7 @@ function headline(data: gmail_v1.Schema$Message, id: string): DigestMessage {
     receivedAt: new Date(Number(data.internalDate ?? 0)).toISOString(),
     unread: data.labelIds?.includes("UNREAD") ?? false,
     labels: data.labelIds ?? [],
-    category: categoryOf(data.labelIds ?? []),
+    tab: categoryOf(data.labelIds ?? []),
     invite: null,
   };
 }
@@ -192,9 +193,9 @@ const byNewest = (a: DigestMessage, b: DigestMessage) =>
  * One day of mail, already split.
  *
  * The split happens at fetch time and on Gmail's own labels, which is what
- * makes the cheap half cheap: noise is two hundred bytes of headers each, is
- * never read, and never reaches the model. Only signal is downloaded in full,
- * and only signal is triaged.
+ * makes the cheap half cheap: bulk mail is two hundred bytes of headers each
+ * and its body is never downloaded. Only signal is read in full, and only
+ * signal has its category decided by the model.
  *
  * `reader` is the connected address — the one an invite's ATTENDEE lines are
  * matched against to find out whether *you* have replied.
@@ -205,17 +206,17 @@ export async function fetchDay(
   {
     reader = "",
     max = SIGNAL_MAX,
-    noiseMax = NOISE_MAX,
-  }: { reader?: string; max?: number; noiseMax?: number } = {},
+    bulkMax = BULK_MAX,
+  }: { reader?: string; max?: number; bulkMax?: number } = {},
 ): Promise<DayMail> {
   const gmail = google.gmail({ version: "v1", auth });
 
-  const [signalIds, noiseIds] = await Promise.all([
+  const [signalIds, bulkIds] = await Promise.all([
     listMessageIds(gmail, day, max, SIGNAL_FILTER),
-    listMessageIds(gmail, day, noiseMax, NOISE_FILTER),
+    listMessageIds(gmail, day, bulkMax, BULK_FILTER),
   ]);
 
-  const [signal, noise] = await Promise.all([
+  const [signal, bulk] = await Promise.all([
     mapWithLimit(signalIds.ids, CONCURRENCY, async (id) => {
       const { data } = await gmail.users.messages.get({
         userId: "me",
@@ -239,7 +240,7 @@ export async function fetchDay(
       } satisfies SignalMessage;
     }),
 
-    mapWithLimit(noiseIds.ids, CONCURRENCY, async (id) => {
+    mapWithLimit(bulkIds.ids, CONCURRENCY, async (id) => {
       const { data } = await gmail.users.messages.get({
         userId: "me",
         id,
@@ -251,8 +252,8 @@ export async function fetchDay(
   ]);
 
   signal.sort(byNewest);
-  noise.sort(byNewest);
-  return { day, signal, noise, truncated: signalIds.truncated };
+  bulk.sort(byNewest);
+  return { day, signal, bulk, truncated: signalIds.truncated };
 }
 
 export type DayVolume = { day: string; count: number; truncated: boolean };
@@ -260,7 +261,7 @@ export type DayVolume = { day: string; count: number; truncated: boolean };
 /**
  * How much mail arrived on each of `days`. Used for the week's volume bars, so
  * a count is all we need — this lists ids without fetching any message. Bulk
- * is left out: the bars are meant to show how busy a day was, and forty
+ * is left out: the rail is meant to show how busy a day was, and forty
  * promotions do not make a busy day.
  */
 export async function fetchVolumes(

@@ -4,11 +4,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 
 import { Toggle } from "./toggle";
-import { BandsList, Footer, HeaderFrame, Shell } from "./digest-screen";
-import { BandsSkeleton, WeekStripSkeleton } from "./skeletons";
-import { WeekStrip } from "./week-strip";
+import { DayView, Footer, HeaderFrame, Shell } from "./digest-screen";
+import { DaySkeleton, WeekRailSkeleton } from "./skeletons";
+import { WeekRail } from "./week-rail";
+import type { SortMode } from "./tiles";
 import * as Button from "@/app/component/ui/button";
 import { aiCookieValue } from "@/lib/preferences";
+import type { Category } from "@/lib/digest-ai";
 import {
   dayQuery,
   previousDay,
@@ -52,23 +54,33 @@ export function DigestClient({
   initialAi: boolean;
 }) {
   const [day, setDay] = React.useState(initialDay);
+  const [focus, setFocus] = React.useState<Category | null>(null);
+  // Sort is a habit, not a property of the day, so it survives paging back.
+  const [sort, setSort] = React.useState<SortMode>("priority");
   const [options, setOptions] = React.useState<DigestOptions>({ useAi: initialAi });
   const queryClient = useQueryClient();
 
   const dayResult = useQuery(dayQuery(day, today, options));
   const weekResult = useQuery(weekQuery(day, today));
 
-  const select = React.useCallback((next: string) => {
-    if (next > today) return;
-    setDay(next);
-    window.history.pushState(null, "", `/?date=${next}`);
-  }, [today]);
+  const select = React.useCallback(
+    (next: string) => {
+      if (next > today) return;
+      setDay(next);
+      // A filter belongs to the day it was set on. Carrying "Meetings" into a
+      // day with no meetings would land on an empty screen for no reason.
+      setFocus(null);
+      window.history.pushState(null, "", `/?date=${next}`);
+    },
+    [today],
+  );
 
   // Keep the browser's back button working with the pushed URLs.
   React.useEffect(() => {
     const onPop = () => {
       const param = new URLSearchParams(window.location.search).get("date");
       setDay(param ?? today);
+      setFocus(null);
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -88,12 +100,12 @@ export function DigestClient({
       <HeaderFrame
         day={day}
         onSelectDay={select}
-        bars={
+        rail={
           weekResult.data ? (
-            // The bars belong to the week, not to the day being fetched: the
-            // selected column moves the instant you pick a day, while the
-            // heights stay put until the new week actually lands.
-            <WeekStrip
+            // The rail belongs to the week, not to the day being fetched: the
+            // selected pill moves the instant you pick a day, while the
+            // volumes stay put until the new week actually lands.
+            <WeekRail
               week={weekResult.data.map((entry) => ({
                 ...entry,
                 selected: entry.day === day,
@@ -101,7 +113,7 @@ export function DigestClient({
               onSelect={select}
             />
           ) : (
-            <WeekStripSkeleton />
+            <WeekRailSkeleton />
           )
         }
       />
@@ -109,9 +121,15 @@ export function DigestClient({
       {dayResult.isError ? (
         <ErrorPanel error={dayResult.error} />
       ) : dayResult.data ? (
-        <BandsList digest={dayResult.data} />
+        <DayView
+          digest={dayResult.data}
+          focus={focus}
+          onFocus={setFocus}
+          sort={sort}
+          onSort={setSort}
+        />
       ) : (
-        <BandsSkeleton />
+        <DaySkeleton />
       )}
 
       <Footer

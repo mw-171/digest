@@ -1,56 +1,68 @@
 import { Column } from "./digest-screen";
 
-const BARS = [1, 2, 3, 4, 5, 6, 7];
+const PILLS = [1, 2, 3, 4, 5, 6, 7];
+const TILES = [1, 2, 3, 4];
 const ROWS = [1, 2, 3, 4];
 
-/** The week strip while its volumes load. Same footprint as the real bars. */
-export function WeekStripSkeleton() {
+/** The week rail while its volumes load. Same footprint as the real pills. */
+export function WeekRailSkeleton() {
   return (
-    <div className="mt-4 flex animate-pulse items-end gap-1.5 md:mt-0 md:w-[340px] md:shrink-0 md:gap-2 lg:w-[420px] lg:gap-3">
-      {BARS.map((bar) => (
-        <div key={bar} className="flex flex-1 flex-col items-center gap-[7px] py-1">
-          <span className="flex h-12 w-full items-end justify-center md:h-[68px]">
-            <span className="h-7 w-4 rounded-[5px] bg-bg-weak-50 md:h-10 md:w-6 lg:w-8" />
-          </span>
-          <span className="h-3 w-4 rounded-full bg-bg-weak-50" />
-          <span className="h-2 w-2 rounded-full bg-bg-weak-50" />
+    <div className="flex animate-pulse gap-[3px] rounded-2xl bg-bg-weak-50 p-1">
+      {PILLS.map((pill) => (
+        <div
+          key={pill}
+          className="flex flex-1 flex-col items-center gap-1 py-[7px] md:py-2.5"
+        >
+          <span className="h-2 w-2 rounded-full bg-bg-soft-200/70" />
+          <span className="h-3.5 w-4 rounded bg-bg-soft-200/70" />
+          <span className="h-[3px] w-3.5 rounded-sm bg-bg-soft-200/70 md:w-5" />
         </div>
       ))}
     </div>
   );
 }
 
-/** The recap line, which now scrolls with the mail rather than sitting above it. */
+/** The recap line, which scrolls with the mail rather than sitting above it. */
 export function RecapSkeleton() {
   return (
-    <div className="pb-1 pt-5">
+    <div className="pb-4 pt-5">
       <div className="h-3 w-[86%] rounded-full bg-bg-weak-50" />
       <div className="mt-2.5 h-3 w-[52%] rounded-full bg-bg-weak-50" />
     </div>
   );
 }
 
-/** A band header plus a few message cards. */
-export function BandsSkeleton() {
+/** The recap, the bar, the four tiles, and a few cards. */
+export function DaySkeleton() {
   return (
     <Column className="animate-pulse pb-4">
       <RecapSkeleton />
 
-      <div className="flex items-center gap-2.5 pb-2.5 pt-5">
-        <span className="size-[9px] rounded-[3px] bg-bg-soft-200" />
-        <span className="h-3 w-24 rounded-full bg-bg-weak-50" />
+      <div className="h-2 rounded bg-bg-weak-50" />
+
+      <div className="grid grid-cols-2 gap-2 pt-5 md:grid-cols-4 md:gap-3">
+        {TILES.map((tile) => (
+          <div key={tile} className="h-[88px] rounded-2xl bg-bg-weak-50 md:h-[100px]" />
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2 pb-2 pt-6">
+        <span className="h-3 w-20 rounded-full bg-bg-weak-50" />
         <span className="h-px flex-1 bg-stroke-soft-200" />
+        <span className="h-3 w-14 rounded-full bg-bg-weak-50" />
       </div>
 
       {ROWS.map((row) => (
         <div
           key={row}
-          className="mb-[7px] flex min-h-[58px] items-center gap-3 rounded-2xl bg-bg-white-0 p-[13px] md:min-h-[68px] md:gap-4 md:px-5 md:py-4"
+          className="mb-[7px] flex min-h-[58px] items-center gap-3.5 rounded-2xl bg-bg-white-0 p-[13px] md:min-h-[68px] md:gap-4 md:px-5 md:py-4"
         >
-          <div className="size-8 shrink-0 rounded-full bg-bg-weak-50" />
-          <div className="flex-1 md:flex md:items-center md:gap-6">
-            <div className="h-2.5 w-[42%] rounded-full bg-bg-weak-50 md:flex-1" />
-            <div className="mt-2 h-2.5 w-[74%] rounded-full bg-bg-soft-200/60 md:mt-0 md:w-40" />
+          {/* Ringed, like the real avatar, so the row does not resize when the
+              mail lands. */}
+          <div className="size-8 shrink-0 rounded-full bg-bg-weak-50 ring-2 ring-bg-soft-200/70 ring-offset-2 ring-offset-bg-white-0" />
+          <div className="min-w-0 flex-1">
+            <div className="h-2.5 w-[38%] rounded-full bg-bg-weak-50" />
+            <div className="mt-2.5 h-2.5 w-[76%] rounded-full bg-bg-soft-200/60" />
           </div>
         </div>
       ))}
@@ -63,15 +75,15 @@ export function DigestSkeleton() {
   return (
     <>
       <div className="border-b border-stroke-soft-200 bg-bg-white-0">
-        <Column className="pb-5 pt-5 md:pb-7 md:pt-8">
-          <div className="flex animate-pulse items-baseline justify-between gap-3">
+        <Column className="pb-4 pt-4 md:pb-5 md:pt-6">
+          <WeekRailSkeleton />
+          <div className="mt-4 flex animate-pulse items-center justify-between gap-3 md:mt-5">
             <div className="h-8 w-40 rounded-lg bg-bg-weak-50 md:h-11 md:w-64" />
             <div className="h-8 w-32 rounded-lg bg-bg-weak-50" />
           </div>
-          <WeekStripSkeleton />
         </Column>
       </div>
-      <BandsSkeleton />
+      <DaySkeleton />
     </>
   );
 }
@@ -93,7 +105,8 @@ export function MessageSkeleton() {
         </header>
 
         <div className="animate-pulse pb-16 pt-3">
-          <div className="h-6 w-[78%] rounded-lg bg-bg-weak-50 md:h-8" />
+          <div className="h-5 w-20 rounded-full bg-bg-weak-50" />
+          <div className="mt-3 h-6 w-[78%] rounded-lg bg-bg-weak-50 md:h-8" />
 
           <div className="mt-5 flex items-center gap-3 border-b border-stroke-soft-200 pb-4">
             <div className="size-10 shrink-0 rounded-full bg-bg-weak-50" />

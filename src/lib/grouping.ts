@@ -341,8 +341,8 @@ export function groupBySender(threads: Thread[], minGroup = 2): SenderGroup[] {
   groups.sort((a, b) => b.count - a.count);
 
   if (remainder.length) {
-    const categories = new Set(remainder.map((thread) => thread.latest.category));
-    const only = categories.size === 1 ? [...categories][0] : "";
+    const tabs = new Set(remainder.map((thread) => thread.latest.tab));
+    const only = tabs.size === 1 ? [...tabs][0] : "";
     const kind: GroupKind =
       only === "promotions" || only === "social" || only === "forums"
         ? only

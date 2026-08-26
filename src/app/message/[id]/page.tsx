@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import * as React from "react";
 
 import { SenderAvatar } from "@/app/component/digest/avatar-initials";
+import { CATEGORY_STYLE } from "@/app/component/digest/categories";
 import { EmailBody } from "@/app/component/digest/email-body";
 import * as Button from "@/app/component/ui/button";
 import { readCachedInsight } from "@/lib/digest-ai";
@@ -14,6 +15,8 @@ import { fetchAccountEmail, fetchMessage } from "@/lib/gmail";
 import { gmailThreadUrl } from "@/lib/gmail-url";
 import { authorizedClient } from "@/lib/google";
 import { summarizeMessage } from "@/lib/message-ai";
+import { CATEGORY_TITLES } from "@/lib/digest";
+import type { Category } from "@/lib/digest-ai";
 import type { FullMessage } from "@/lib/gmail";
 
 function Label({ children }: { children: React.ReactNode }) {
@@ -21,6 +24,26 @@ function Label({ children }: { children: React.ReactNode }) {
     <p className="text-label-xs font-semibold uppercase tracking-[0.05em] text-text-soft-400">
       {children}
     </p>
+  );
+}
+
+/**
+ * Which of the four tiles this message came from. It is the one piece of
+ * context the digest had and this page did not — without it, arriving here
+ * from a tap on Meetings tells you nothing about why the message was there.
+ */
+function CategoryChip({ category }: { category: Category }) {
+  const style = CATEGORY_STYLE[category];
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 ${style.chip}`}
+    >
+      <span className={`size-2 rounded-[2px] ${style.swatch}`} />
+      <span className={`text-label-xs font-semibold ${style.ink}`}>
+        {CATEGORY_TITLES[category]}
+      </span>
+    </span>
   );
 }
 
@@ -126,7 +149,11 @@ export default async function MessagePage({
     readCachedInsight(day, id),
   ]);
 
-  const band = insight?.band ?? "fyi";
+  // An invitation is about a scheduled thing whatever the day's triage said,
+  // and this page can see the parsed invite even when the day was never opened.
+  const category: Category = message.invite
+    ? "meetings"
+    : (insight?.category ?? "updates");
   const received = new Date(message.receivedAt);
 
   return (
@@ -146,7 +173,9 @@ export default async function MessagePage({
         </header>
 
         <div className="pb-16 pt-3">
-          <h1 className="break-words text-title-h5 tracking-[-0.03em] text-text-strong-950 text-pretty md:text-title-h4">
+          <CategoryChip category={category} />
+
+          <h1 className="mt-3 break-words text-title-h5 tracking-[-0.03em] text-text-strong-950 text-pretty md:text-title-h4">
             {insight?.purpose ?? message.subject}
           </h1>
 
@@ -154,7 +183,7 @@ export default async function MessagePage({
             <SenderAvatar
               name={message.from}
               email={message.fromEmail}
-              band={band}
+              category={category}
               size="40"
             />
             <div className="min-w-0 flex-1 overflow-hidden">

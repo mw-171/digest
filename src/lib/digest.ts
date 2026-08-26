@@ -2,9 +2,10 @@ import { cache } from "react";
 
 import { toDayString, weekWindow } from "@/lib/day";
 import {
+  CATEGORIES,
   fetchInsights,
-  TRIAGE_BANDS,
-  type Band,
+  URGENCY_RANK,
+  type Category,
   type Insight,
 } from "@/lib/digest-ai";
 import {
@@ -17,10 +18,13 @@ import { authorizedClient } from "@/lib/google";
 
 export type DigestItem = DigestMessage & Insight;
 
-export type BandGroup = {
-  key: Band;
+/** One tile: what the category is called, and how much is in it. */
+export type CategoryGroup = {
+  key: Category;
   title: string;
-  items: DigestItem[];
+  count: number;
+  /** How many of those want something back from the reader. */
+  replies: number;
 };
 
 export type WeekDay = {
@@ -28,8 +32,8 @@ export type WeekDay = {
   weekday: string;
   date: string;
   count: number;
-  /** Bar height in px, 5–48, scaled against the busiest day in the window. */
-  height: number;
+  /** How busy the day was, 0–1, against the busiest day in the window. */
+  weight: number;
   selected: boolean;
   isToday: boolean;
 };
@@ -39,23 +43,23 @@ export type DayDigest = {
   day: string;
   recap: string;
   source: "claude" | "heuristic";
-  /** Signal only. Noise is counted by the length of its own list. */
+  /** Every message the day held, both halves. */
   total: number;
   truncated: boolean;
-  bands: BandGroup[];
-  noise: DigestItem[];
+  /** The four tiles, always all four, in a fixed order. */
+  categories: CategoryGroup[];
+  /** Every message, already sorted by how much it wants the reader. */
+  items: DigestItem[];
 };
 
 export type Digest = DayDigest & { week: WeekDay[] };
 
-const BAND_TITLES: Record<Band, string> = {
-  needs: "TOP OF MIND",
-  fyi: "FYI",
-  noise: "NOISE",
+export const CATEGORY_TITLES: Record<Category, string> = {
+  work: "Work",
+  meetings: "Meetings",
+  social: "Social",
+  updates: "Updates",
 };
-
-const BAR_MAX = 48;
-const BAR_MIN = 5;
 
 async function client() {
   const auth = await authorizedClient();
@@ -64,8 +68,8 @@ async function client() {
 }
 
 /**
- * The week strip. Separate from {@link getDay} — and much faster, since it only
- * counts ids — so the bars can render while the day is still being triaged.
+ * The week rail. Separate from {@link getDay} — and much faster, since it only
+ * counts ids — so the rail can render while the day is still being triaged.
  *
  * `cache` dedupes within a render, so several components may call these freely.
  */
@@ -84,9 +88,7 @@ export const getWeek = cache(async (day: string): Promise<WeekDay[]> => {
       weekday: date.toLocaleDateString(undefined, { weekday: "narrow" }),
       date: String(date.getDate()),
       count,
-      height: count
-        ? Math.max(BAR_MIN, Math.round((count / busiest) * BAR_MAX))
-        : BAR_MIN,
+      weight: count / busiest,
       selected: d === day,
       isToday: d === today,
     };
@@ -98,61 +100,89 @@ const reader = cache(async () =>
   fetchAccountEmail(await client()).catch(() => ""),
 );
 
+/**
+ * The order the day is read in.
+ *
+ * Urgency first, because that is the one judgement the model was asked to make
+ * about how much a message wants. Then whether anything is being asked at all,
+ * then the nearest date, and only then the clock — arrival time is the weakest
+ * signal there is and it decides nothing but ties.
+ */
+function byPriority(a: DigestItem, b: DigestItem) {
+  const urgency = URGENCY_RANK[a.urgency] - URGENCY_RANK[b.urgency];
+  if (urgency !== 0) return urgency;
+
+  if (a.needsReply !== b.needsReply) return a.needsReply ? -1 : 1;
+
+  // A dated message outranks an undated one at the same urgency, soonest first.
+  if (a.due !== b.due) {
+    if (!a.due) return 1;
+    if (!b.due) return -1;
+    return a.due.localeCompare(b.due);
+  }
+
+  return b.receivedAt.localeCompare(a.receivedAt);
+}
+
 export const getDay = cache(
   async (day: string, useAi = true): Promise<DayDigest> => {
     const auth = await client();
-    const { signal, noise, truncated } = await fetchDay(auth, day, {
+    const { signal, bulk, truncated } = await fetchDay(auth, day, {
       reader: await reader(),
     });
 
-    // Only signal is triaged. Noise was settled by Gmail's labels before any
-    // of it was fetched, and asking the model to confirm that would cost a
-    // round trip to learn what a label already said.
-    const insights = await fetchInsights(day, signal, useAi);
+    const insights = await fetchInsights(day, signal, bulk, useAi);
 
-    const items: DigestItem[] = signal.map(({ text, ...message }) => {
-      // The body stays on the server. It was downloaded for the model, and
-      // fifty of them would dwarf everything else the page sends.
-      void text;
-
+    const withInsight = (message: DigestMessage): DigestItem => {
       const insight = insights.byId[message.id] ?? {
         purpose: message.subject,
+        blurb: "",
         due: "",
         dueKind: "none" as const,
-        band: "fyi" as const,
+        category: "updates" as const,
+        urgency: "low" as const,
+        needsReply: false,
       };
 
       return {
         ...message,
         ...insight,
-        // Whatever the model called it, a date attached to an invitation is
-        // when the thing happens.
+        // Whatever the model called it, a message carrying an invitation is
+        // about a scheduled thing, and its date is when that thing happens.
+        category: message.invite ? "meetings" : insight.category,
         dueKind: message.invite ? ("event" as const) : insight.dueKind,
       };
-    });
+    };
 
-    const inBand = (band: Band) => items.filter((item) => item.band === band);
+    const items = [
+      // The body stays on the server. It was downloaded for the model, and
+      // fifty of them would dwarf everything else the page sends.
+      ...signal.map(({ text, ...message }) => {
+        void text;
+        return withInsight(message);
+      }),
+      ...bulk.map(withInsight),
+    ].sort(byPriority);
+
+    const inCategory = (key: Category) =>
+      items.filter((item) => item.category === key);
 
     return {
       day,
       recap: insights.recap,
       source: insights.source,
-      total: signal.length,
+      total: items.length,
       truncated,
-      bands: TRIAGE_BANDS.map((key) => ({
-        key,
-        title: BAND_TITLES[key],
-        items: inBand(key),
-      })),
-      // Headline only: noise has no body, no insight and no card.
-      noise: noise.map((message) => ({
-        ...message,
-        purpose: message.subject,
-        due: "",
-        dueKind: "none" as const,
-        band: "noise" as const,
-      })),
+      categories: CATEGORIES.map((key) => {
+        const group = inCategory(key);
+        return {
+          key,
+          title: CATEGORY_TITLES[key],
+          count: group.length,
+          replies: group.filter((item) => item.needsReply).length,
+        };
+      }),
+      items,
     };
   },
 );
-
