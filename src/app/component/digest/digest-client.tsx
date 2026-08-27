@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  useIsRestoring,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 
 import { Toggle } from "./toggle";
@@ -72,6 +68,23 @@ function useDelayed(on: boolean, ms: number) {
   }, [on, ms]);
 
   return late;
+}
+
+/**
+ * False until React has hydrated.
+ *
+ * The server renders this screen with no data, but the persisted cache can be
+ * restored before React reaches the subtree — so the first client render had
+ * the digest where the server's HTML had a placeholder. React cannot reconcile
+ * that and rebuilds the whole tree, which is what made a hard reload flicker
+ * and restarted the spinner a quarter of the way round. Holding the first
+ * client render to what the server sent makes the two identical by
+ * construction; the cache lands one frame later, as an ordinary update.
+ */
+function useHydrated() {
+  const [hydrated, setHydrated] = React.useState(false);
+  React.useEffect(() => setHydrated(true), []);
+  return hydrated;
 }
 
 function ErrorPanel({ error }: { error: unknown }) {
@@ -151,9 +164,14 @@ export function DigestClient({
   const dayResult = useQuery(dayQuery(day, options));
   const weekResult = useQuery(weekQuery(anchor));
 
+  const hydrated = useHydrated();
+  /** Everything below reads this, never `dayResult.data`, so one gate covers
+   *  the whole screen. */
+  const digest = hydrated ? dayResult.data : undefined;
+
   // The pills are a calendar, so they are computed here and always rendered.
   // The volumes are a mailbox, so they are folded in whenever they arrive.
-  const volumes = weekResult.data;
+  const volumes = hydrated ? weekResult.data : undefined;
   const week = React.useMemo(
     () =>
       railDays(windowFrom(anchor), day, today).map((pill) => {
@@ -173,14 +191,14 @@ export function DigestClient({
    * Three states, and never two at once — which is the whole point of deriving
    * them from one another rather than checking three flags at the render site.
    *
-   * `restoring` is the moment before the persisted cache has been read back,
-   * when we do not yet know whether there is anything to show. Painting a
-   * skeleton here is what made every reload flash one for a frame.
+   * The skeleton covers every moment there is nothing to show, the read-back
+   * of the persisted cache included. Suppressing it there left a blank frame
+   * between the route's own skeleton and the content — which is what made a
+   * hard reload flicker.
    */
-  const restoring = useIsRestoring();
-  const hasData = dayResult.data !== undefined;
-  /** Nothing to show at all: a first load, or a reload with an empty cache. */
-  const cold = !restoring && !hasData;
+  const hasData = digest !== undefined;
+  /** Nothing to show at all: still restoring, or a load with an empty cache. */
+  const cold = !hasData;
   /**
    * Waiting on a day we have never loaded, so what is on screen belongs to a
    * different one. A day we already hold is shown at once and re-read behind
@@ -189,8 +207,11 @@ export function DigestClient({
    *
    * Delayed, so a fetch that lands quickly never flashes an indicator at all.
    */
-  const waiting = useDelayed(dayResult.isPlaceholderData, SHOW_DELAY_MS);
-  const busy = restoring || cold || waiting;
+  const waiting = useDelayed(
+    hydrated && dayResult.isPlaceholderData,
+    SHOW_DELAY_MS,
+  );
+  const busy = cold || waiting;
 
   // Both layers outlive the state that raised them, so each one fades out
   // rather than being unmounted mid-transition. Removing an element is not a
@@ -298,9 +319,9 @@ export function DigestClient({
               waiting && "pointer-events-none select-none",
             )}
           >
-            {dayResult.data ? (
+            {digest ? (
               <DayView
-                digest={dayResult.data}
+                digest={digest}
                 today={today}
                 focus={focus}
                 onFocus={setFocus}
@@ -340,7 +361,7 @@ export function DigestClient({
       )}
 
       <Footer
-        source={dayResult.data?.source}
+        source={digest?.source}
         toggle={
           SHOW_AI_TOGGLE ? (
             <Toggle

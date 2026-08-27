@@ -1,28 +1,11 @@
 import { DigestingOverlay } from "./digesting";
+import { WeekRail } from "./week-rail";
+import { anchoredWindow, railDays, toDayString } from "@/lib/day";
 import { Column } from "./layout-frame";
-import { RAIL_DAYS } from "@/lib/day";
 
-const PILLS = Array.from({ length: RAIL_DAYS }, (_, i) => i);
 const TILES = [1, 2, 3, 4];
 const ROWS = [1, 2, 3, 4];
 
-/** The week rail while its volumes load. Same footprint as the real pills. */
-export function WeekRailSkeleton() {
-  return (
-    <div className="flex animate-pulse rounded-2xl bg-bg-weak-50 p-1">
-      {PILLS.map((pill) => (
-        <div
-          key={pill}
-          className="flex flex-1 basis-0 flex-col items-center gap-1 py-[7px] md:py-2.5"
-        >
-          <span className="h-2 w-2 rounded-full bg-bg-soft-200/70" />
-          <span className="h-3.5 w-4 rounded bg-bg-soft-200/70" />
-          <span className="h-[3px] w-3 rounded-sm bg-bg-soft-200/70 md:w-4" />
-        </div>
-      ))}
-    </div>
-  );
-}
 
 /** The recap line, which scrolls with the mail rather than sitting above it. */
 export function RecapSkeleton() {
@@ -77,14 +60,16 @@ export function DaySkeleton() {
 
 /** The whole page, for the route-level loading boundary. */
 export function DigestSkeleton() {
+  const today = toDayString();
+
   return (
     <>
-      <div className="border-b border-stroke-soft-200 bg-bg-white-0">
-        <Column className="pb-4 pt-4 md:pb-5 md:pt-6">
-          <WeekRailSkeleton />
-          <div className="mt-4 flex animate-pulse items-center justify-between gap-3 md:mt-5">
-            <div className="h-8 w-40 rounded-lg bg-bg-weak-50 md:h-11 md:w-64" />
-            <div className="h-8 w-32 rounded-lg bg-bg-weak-50" />
+      <div className="safe-top border-b border-stroke-soft-200 bg-bg-white-0">
+        <Column className="pb-4 md:pb-5 md:pt-2">
+          <WeekRail week={railDays(anchoredWindow(today), today, today)} />
+          <div className="mt-4 flex items-center justify-between gap-3 md:mt-5">
+            <span className="h-8 w-40 rounded-lg bg-bg-weak-50 md:h-11 md:w-64" />
+            <span className="h-8 w-[124px] shrink-0 rounded-lg bg-bg-weak-50" />
           </div>
         </Column>
       </div>
