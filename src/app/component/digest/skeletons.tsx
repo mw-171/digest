@@ -1,21 +1,22 @@
 import { Column } from "./layout-frame";
+import { RAIL_DAYS } from "@/lib/day";
 
-const PILLS = [1, 2, 3, 4, 5, 6, 7];
+const PILLS = Array.from({ length: RAIL_DAYS }, (_, i) => i);
 const TILES = [1, 2, 3, 4];
 const ROWS = [1, 2, 3, 4];
 
 /** The week rail while its volumes load. Same footprint as the real pills. */
 export function WeekRailSkeleton() {
   return (
-    <div className="flex animate-pulse gap-[3px] rounded-2xl bg-bg-weak-50 p-1">
+    <div className="flex animate-pulse rounded-2xl bg-bg-weak-50 p-1">
       {PILLS.map((pill) => (
         <div
           key={pill}
-          className="flex flex-1 flex-col items-center gap-1 py-[7px] md:py-2.5"
+          className="flex flex-1 basis-0 flex-col items-center gap-1 py-[7px] md:py-2.5"
         >
           <span className="h-2 w-2 rounded-full bg-bg-soft-200/70" />
           <span className="h-3.5 w-4 rounded bg-bg-soft-200/70" />
-          <span className="h-[3px] w-3.5 rounded-sm bg-bg-soft-200/70 md:w-5" />
+          <span className="h-[3px] w-3 rounded-sm bg-bg-soft-200/70 md:w-4" />
         </div>
       ))}
     </div>

@@ -283,6 +283,8 @@ const items = specs.map(item).sort((a, b) => {
   return b.receivedAt.localeCompare(a.receivedAt);
 });
 
+// Seven days ending today, the window the real rail uses. The selected day
+// sits mid-rail so the preview shows a selection that is not at either end.
 const week = [
   { date: "17", weekday: "M", count: 12 },
   { date: "18", weekday: "T", count: 21 },
@@ -316,7 +318,7 @@ const digest: Digest = {
     count: day.count,
     weight: day.count / 23,
     selected: day.date === "20",
-    isToday: day.date === "20",
+    isToday: day.date === "23",
   })),
 };
 

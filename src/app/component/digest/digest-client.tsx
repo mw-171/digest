@@ -61,7 +61,7 @@ export function DigestClient({
   const queryClient = useQueryClient();
 
   const dayResult = useQuery(dayQuery(day, today, options));
-  const weekResult = useQuery(weekQuery(day, today));
+  const weekResult = useQuery(weekQuery(today));
 
   const select = React.useCallback(
     (next: string) => {

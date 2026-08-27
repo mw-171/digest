@@ -6,7 +6,8 @@ import { authorizedClient, isAuthError } from "@/lib/google";
 import { json } from "@/lib/http";
 
 /**
- * Volume counts for the seven-day window around `date`. Cheap: ids only, and
+ * Volume counts for the rail's window, which ends today whatever `date` is.
+ * Cheap: ids only, and
  * recomputed on every request for the same reason the digest is.
  */
 export const dynamic = "force-dynamic";

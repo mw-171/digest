@@ -32,30 +32,28 @@ export function weekOf(day: string) {
   });
 }
 
+/** Days in the rail: today, and the six before it. */
+export const RAIL_DAYS = 7;
+
 /**
- * The seven-day window the strip shows. Centred on `day` where possible, but
- * never running past `today` — so landing on today gives a full week of
- * history rather than a row of empty future bars.
+ * The days the rail shows.
+ *
+ * A fixed window ending today, not one centred on whatever day is selected.
+ * Centring meant the rail slid under you every time you picked something near
+ * its edge, so the same date sat in a different place from one tap to the
+ * next and there was no way to tell "three days ago" by position. Anything
+ * older than the window is the date picker's job.
+ *
+ * `day` is not part of the window any more — only of which pill reads as
+ * selected — but it stays in the signature because callers pass it and the
+ * result is still per-request.
  */
-export function weekWindow(day: string, today = toDayString()) {
-  const centre = new Date(`${day}T00:00:00`);
-  const start = new Date(centre);
-  start.setDate(centre.getDate() - 3);
+export function weekWindow(_day: string, today = toDayString()) {
+  const end = new Date(`${today}T00:00:00`);
 
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-
-  const lastAllowed = new Date(`${today}T00:00:00`);
-  if (end > lastAllowed) {
-    const overshoot = Math.round(
-      (end.getTime() - lastAllowed.getTime()) / 86_400_000,
-    );
-    start.setDate(start.getDate() - overshoot);
-  }
-
-  return Array.from({ length: 7 }, (_, index) => {
-    const d = new Date(start);
-    d.setDate(start.getDate() + index);
+  return Array.from({ length: RAIL_DAYS }, (_, index) => {
+    const d = new Date(end);
+    d.setDate(end.getDate() - (RAIL_DAYS - 1 - index));
     return toDayString(d);
   });
 }

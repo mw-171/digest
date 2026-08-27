@@ -19,7 +19,13 @@ export const CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
 export const dayKey = (day: string, options: DigestOptions) =>
   ["day", day, options.useAi ? "ai" : "plain"] as const;
 
-export const weekKey = (day: string) => ["week", day] as const;
+/**
+ * The rail's window is the same for every day you can select, so it is keyed
+ * on the window rather than on the selection. Paging between days then reads
+ * one cached answer instead of refetching identical counts, and the pills
+ * never blink on the way.
+ */
+export const weekKey = (today: string) => ["week", today] as const;
 
 export class DigestRequestError extends Error {
   status: number;
@@ -85,15 +91,14 @@ export function dayQuery(day: string, today: string, options: DigestOptions) {
  * is itself reloading. The bars barely move between neighbouring days, so
  * holding the old ones is both calmer and truer.
  */
-export function weekQuery(day: string, today: string) {
-  const params = new URLSearchParams({ date: day });
+export function weekQuery(today: string) {
+  const params = new URLSearchParams({ date: today });
 
   return {
-    queryKey: weekKey(day),
+    queryKey: weekKey(today),
     queryFn: () => getJson<WeekDay[]>(`/api/week?${params}`),
-    // A window containing today can still gain mail; one entirely in the past
-    // cannot.
-    staleTime: day >= today ? 0 : CACHE_MAX_AGE,
+    // The window ends today, so it can always gain mail.
+    staleTime: 0,
     placeholderData: keepPreviousData,
   };
 }
