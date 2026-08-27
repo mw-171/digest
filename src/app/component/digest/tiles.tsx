@@ -1,6 +1,6 @@
 "use client";
 
-import { RiCheckLine, RiEqualizer2Line } from "@remixicon/react";
+import { RiCheckLine, RiEqualizer2Line, RiReplyLine } from "@remixicon/react";
 
 import { CATEGORY_STYLE } from "./categories";
 import * as Dropdown from "@/app/component/ui/dropdown";
@@ -90,9 +90,15 @@ function Tile({
           <span className="text-label-xs font-medium text-text-sub-600 md:text-label-sm">
             {group.title}
           </span>
+          {/* How many of this lane's messages are waiting on a reply. `↩` was a
+              text arrow, which iOS renders as a colour emoji. */}
           {group.replies > 0 && (
-            <span className="text-label-xs font-semibold tracking-[0.05em] text-primary-base">
-              {group.replies} ↩
+            <span
+              title={`${group.replies} waiting on a reply`}
+              className="inline-flex items-center gap-0.5 text-label-xs font-semibold tabular-nums text-primary-base"
+            >
+              {group.replies}
+              <RiReplyLine aria-hidden className="size-3" />
             </span>
           )}
         </span>

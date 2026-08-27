@@ -1,29 +1,13 @@
 "use client";
 
-import {
-  RiArrowDownSLine,
-  RiArrowUpSLine,
-  RiChat3Line,
-  RiMailLine,
-  RiPriceTag3Line,
-  RiUserSmileLine,
-} from "@remixicon/react";
+import { RiErrorWarningLine, RiReplyLine } from "@remixicon/react";
 import Link from "next/link";
 import * as React from "react";
 
 import { SenderAvatar } from "./avatar-initials";
 import { CATEGORY_STYLE } from "./categories";
-import * as Accordion from "@/app/component/ui/accordion";
 import { eventDateBlock, formatDeadline, formatEventTime } from "@/lib/day";
-import {
-  describeGroups,
-  groupBySender,
-  participantLabel,
-  threadsOf,
-  type GroupKind,
-  type SenderGroup,
-  type Thread,
-} from "@/lib/grouping";
+import { participantLabel, threadsOf, type Thread } from "@/lib/grouping";
 import { cn } from "@/utils/cn";
 import type { DigestItem } from "@/lib/digest";
 import { gmailThreadUrl } from "@/lib/gmail-url";
@@ -33,8 +17,6 @@ import { gmailThreadUrl } from "@/lib/gmail-url";
  * rather than with the column's own edge — the cards have 13px of padding, so
  * a row flush to the column reads as wider than everything above it.
  */
-const ROW = "px-[13px] py-2 md:px-5";
-
 /**
  * The card carries no colour of its own. Category lives on the ring around the
  * sender's face, which is one small circle per row instead of a bar down every
@@ -55,8 +37,10 @@ function Deadline({ item, day }: { item: DigestItem; day: string }) {
   return (
     <span
       className={cn(
-        "shrink-0 whitespace-nowrap text-label-xs font-semibold",
-        deadline.late ? "text-text-soft-400" : "text-primary-base",
+        // Neutral on purpose: the accent belongs to the flags, which say what
+        // is wanted. This only says when, and competed with them for it.
+        "shrink-0 whitespace-nowrap text-label-xs font-medium",
+        deadline.late ? "text-text-soft-400" : "text-text-sub-600",
       )}
     >
       {deadline.label}
@@ -79,13 +63,43 @@ function Time({ at }: { at: string }) {
   );
 }
 
-/** The dot that means someone is waiting. */
-function ReplyDot() {
+/**
+ * What this card wants from you, if anything. A 6px dot said only "something",
+ * which is no use for scanning: this names the thing, in the accent already
+ * used for anything that wants a reader.
+ */
+function ActionFlag({ item }: { item: DigestItem }) {
+  // A reply arrow is the shape every mail client uses for the action; a warning
+  // circle reads as "attend to this" where a flag reads as "flag it for later".
+  const kind = item.needsReply
+    ? {
+        icon: RiReplyLine,
+        hint: "Someone is waiting on your reply",
+        tone: "bg-primary-alpha-10 text-primary-dark",
+      }
+    : // "high" is the model's word for needs-you-today-or-tomorrow.
+      item.urgency === "high"
+      ? {
+          icon: RiErrorWarningLine,
+          hint: "Needs you today or tomorrow",
+          tone: "bg-orange-alpha-10 text-orange-700",
+        }
+      : null;
+  if (!kind) return null;
+
+  const Icon = kind.icon;
+
   return (
     <span
-      aria-label="Needs a reply"
-      className="size-[6px] shrink-0 self-center rounded-full bg-primary-base"
-    />
+      title={kind.hint}
+      aria-label={kind.hint}
+      className={cn(
+        "inline-flex size-5 shrink-0 items-center justify-center rounded-full",
+        kind.tone,
+      )}
+    >
+      <Icon aria-hidden className="size-3" />
+    </span>
   );
 }
 
@@ -99,6 +113,8 @@ function CardBody({
   blurb,
   at,
   trailing,
+  compact = false,
+  read = false,
   children,
 }: {
   sender: string;
@@ -106,23 +122,39 @@ function CardBody({
   at?: string;
   /** Sits on the top line, right of the time: a deadline or a thread count. */
   trailing?: React.ReactNode;
+  /** One line at every width, for lanes read by scanning rather than reading. */
+  compact?: boolean;
+  /** Already read: the sender steps back so unread mail carries the weight. */
+  read?: boolean;
   /** Overrides the blurb line entirely — used by invitations. */
   children?: React.ReactNode;
 }) {
   return (
     <span className="min-w-0 flex-1 overflow-hidden">
-      <span className="flex items-baseline justify-between gap-2">
-        <span className="truncate text-label-sm font-semibold text-text-strong-950 md:text-label-md">
+      <span className="flex items-center justify-between gap-2">
+        <span
+          className={cn(
+            "truncate text-label-sm md:text-label-md",
+            read
+              ? "font-medium text-text-sub-600"
+              : "font-semibold text-text-strong-950",
+          )}
+        >
           {sender}
         </span>
-        <span className="flex shrink-0 items-baseline gap-2">
+        <span className="flex shrink-0 items-center gap-2">
           {trailing}
           {at && <Time at={at} />}
         </span>
       </span>
 
       {children ?? (
-        <span className="mt-0.5 line-clamp-2 block text-label-xs leading-snug text-text-sub-600 [overflow-wrap:anywhere] md:mt-1 md:line-clamp-1 md:text-label-sm">
+        <span
+          className={cn(
+            "mt-0.5 block text-label-xs leading-snug text-text-sub-600 [overflow-wrap:anywhere] md:mt-1 md:line-clamp-1 md:text-label-sm",
+            compact ? "line-clamp-1" : "line-clamp-2",
+          )}
+        >
           {blurb}
         </span>
       )}
@@ -135,10 +167,12 @@ function MessageCard({
   item,
   day,
   showTime,
+  compact,
 }: {
   item: DigestItem;
   day: string;
   showTime: boolean;
+  compact: boolean;
 }) {
   return (
     <Link
@@ -154,9 +188,15 @@ function MessageCard({
         sender={item.from}
         blurb={item.blurb || item.purpose}
         at={showTime ? item.receivedAt : undefined}
-        trailing={<Deadline item={item} day={day} />}
+        compact={compact}
+        read={!item.unread}
+        trailing={
+          <>
+            <ActionFlag item={item} />
+            <Deadline item={item} day={day} />
+          </>
+        }
       />
-      {item.needsReply && <ReplyDot />}
     </Link>
   );
 }
@@ -170,10 +210,12 @@ function ThreadCard({
   thread,
   day,
   showTime,
+  compact,
 }: {
   thread: Thread;
   day: string;
   showTime: boolean;
+  compact: boolean;
 }) {
   const latest = thread.latest;
 
@@ -191,13 +233,17 @@ function ThreadCard({
         sender={participantLabel(thread.participants)}
         blurb={latest.blurb || thread.subject}
         at={showTime ? latest.receivedAt : undefined}
+        compact={compact}
+        read={!latest.unread}
         trailing={
-          <span className="rounded-full bg-bg-weak-50 px-1.5 py-0.5 text-label-xs font-semibold text-text-sub-600">
-            {thread.count}
-          </span>
+          <>
+            <ActionFlag item={latest} />
+            <span className="rounded-full bg-bg-weak-50 px-1.5 py-0.5 text-label-xs font-semibold tabular-nums text-text-sub-600">
+              {thread.count}
+            </span>
+          </>
         }
       />
-      {latest.needsReply && <ReplyDot />}
     </Link>
   );
 }
@@ -235,7 +281,7 @@ function InviteCard({ item, day }: { item: DigestItem; day: string }) {
         </span>
 
         <span className="min-w-0 flex-1 overflow-hidden">
-          <span className="flex items-baseline justify-between gap-2">
+          <span className="flex items-center justify-between gap-2">
             {/* Stretched so the whole card opens the message, without nesting
                 a link inside a link the way a wrapping <a> would. */}
             <Link
@@ -294,17 +340,33 @@ function ThreadEntry({
   thread,
   day,
   showTime,
+  compact,
 }: {
   thread: Thread;
   day: string;
   showTime: boolean;
+  compact: boolean;
 }) {
   if (thread.count > 1)
-    return <ThreadCard thread={thread} day={day} showTime={showTime} />;
+    return (
+      <ThreadCard
+        thread={thread}
+        day={day}
+        showTime={showTime}
+        compact={compact}
+      />
+    );
   // An invitation shows its event's time, which matters whatever day you are
   // reading — that is not the same fact as when the mail arrived.
   if (thread.latest.invite) return <InviteCard item={thread.latest} day={day} />;
-  return <MessageCard item={thread.latest} day={day} showTime={showTime} />;
+  return (
+    <MessageCard
+      item={thread.latest}
+      day={day}
+      showTime={showTime}
+      compact={compact}
+    />
+  );
 }
 
 /**
@@ -318,11 +380,14 @@ export function CardList({
   items,
   day,
   showTime = false,
+  compact = false,
 }: {
   items: DigestItem[];
   day: string;
   /** Only today's digest carries arrival times. See {@link DayView}. */
   showTime?: boolean;
+  /** One-line blurbs, for Social. */
+  compact?: boolean;
 }) {
   return (
     <>
@@ -332,6 +397,7 @@ export function CardList({
           thread={thread}
           day={day}
           showTime={showTime}
+          compact={compact}
         />
       ))}
     </>
@@ -339,175 +405,23 @@ export function CardList({
 }
 
 /**
- * Social, in three rows instead of forty. Only headers were fetched, so the
- * useful question is what the pile is made of: threading collapses bot chatter,
- * grouping by sender leaves a few tappable lines, and the sentence above them
- * is arithmetic rather than a model's guess.
+ * Social, as cards like everything else — no heading, because no other lane
+ * gets one and a rule across the list only asked what it was for. The ring on
+ * each sender's face already says which lane this is, and the blurbs are held
+ * to one line because these are scanned rather than read.
  */
-export function SocialGroups({
+export function SocialCards({
   items,
   day,
-  heading = true,
 }: {
   items: DigestItem[];
   day: string;
-  /** Off when the Social tile is the filter and the rule above already said so. */
-  heading?: boolean;
 }) {
   if (items.length === 0) return null;
 
-  const groups = groupBySender(threadsOf(items));
-
   return (
     <section>
-      {heading && (
-        <div className="flex items-center gap-2.5 pb-1 pt-6">
-          <span
-            className={cn(
-              "size-[9px] shrink-0 rounded-[3px]",
-              CATEGORY_STYLE.social.swatch,
-            )}
-          />
-          <span className="text-label-xs font-semibold uppercase tracking-[0.05em] text-text-soft-400">
-            Social
-          </span>
-          <span className="text-label-xs text-text-soft-400">{items.length}</span>
-          <span className="h-px flex-1 bg-stroke-soft-200" />
-        </div>
-      )}
-      <p className="pb-1 text-label-xs text-text-soft-400">
-        {describeGroups(groups)}
-      </p>
-      {groups.map((group) => (
-        <SenderRow key={group.key || "rest"} group={group} day={day} />
-      ))}
+      <CardList items={items} day={day} compact />
     </section>
-  );
-}
-
-/** What stands in for a face when the group is a category, not a sender. */
-const BUCKET_ICON: Record<Exclude<GroupKind, "sender">, React.ElementType> = {
-  promotions: RiPriceTag3Line,
-  social: RiUserSmileLine,
-  forums: RiChat3Line,
-  mixed: RiMailLine,
-};
-
-function GroupIcon({ group }: { group: SenderGroup }) {
-  if (group.kind === "sender") {
-    // No ring down here: every row in this section is Social, so a ring on
-    // each one would spend colour saying what the heading already said.
-    return (
-      <SenderAvatar
-        name={group.label}
-        email={group.threads[0].latest.fromEmail}
-        category="social"
-        size="32"
-        ring={false}
-      />
-    );
-  }
-
-  // The remainder is not a sender, so it gets a symbol rather than a face:
-  // borrowing a member's logo would name the row after whichever newsletter
-  // happened to sort first.
-  const Icon = BUCKET_ICON[group.kind];
-  return (
-    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-bg-weak-50">
-      <Icon className="size-4 text-text-soft-400" />
-    </span>
-  );
-}
-
-/** Quieter than a title, and never the loudest thing in its row. */
-function Count({ value }: { value: number }) {
-  return (
-    <span className="shrink-0 text-label-xs tabular-nums text-text-soft-400">
-      {value}
-    </span>
-  );
-}
-
-/** How many conversations a source shows before it needs asking twice. */
-const VISIBLE_THREADS = 5;
-
-/**
- * One source, and what it sent. The header names the sender — never one of its
- * subjects, which read as a random email promoted above its siblings — and each
- * row below drops the boilerplate they share, leaving the part that differs.
- */
-function SenderRow({ group, day }: { group: SenderGroup; day: string }) {
-  const [expanded, setExpanded] = React.useState(false);
-  const shown = expanded ? group.threads : group.threads.slice(0, VISIBLE_THREADS);
-  const hidden = group.threads.length - shown.length;
-
-  return (
-    <Accordion.Root type="single" collapsible>
-      <Accordion.Item
-        value={group.key || "rest"}
-        className={cn(
-          "rounded-none bg-transparent p-0 ring-0",
-          "hover:bg-transparent has-[:focus-visible]:bg-transparent",
-          "data-[state=open]:bg-transparent",
-        )}
-      >
-        <Accordion.Header>
-          <Accordion.Trigger className={cn(ROW, "m-0 flex w-full items-center gap-3")}>
-            <GroupIcon group={group} />
-
-            <span className="shrink-0 truncate text-left text-label-sm font-semibold text-text-strong-950">
-              {group.label}
-            </span>
-            <span className="min-w-0 flex-1 truncate text-left text-label-xs text-text-soft-400">
-              {group.descriptor}
-            </span>
-
-            <Count value={group.count} />
-            <Accordion.Arrow
-              openIcon={RiArrowDownSLine}
-              closeIcon={RiArrowUpSLine}
-              className="size-4 shrink-0"
-            />
-          </Accordion.Trigger>
-        </Accordion.Header>
-
-        <Accordion.Content className="pt-0 text-inherit">
-          {/* No avatars down here: the header carries the face, the indent
-              carries the relationship. */}
-          {/* Indented to where the source label starts: 13px of row padding,
-              a 32px mark and the gap after it. */}
-          <div className="pb-1.5 pl-[57px] md:pl-16">
-            {shown.map((thread) => (
-              <Link
-                key={thread.id}
-                href={`/message/${thread.latest.id}?date=${day}`}
-                className={cn(
-                  ROW,
-                  "flex items-baseline gap-3 py-1.5 pl-0 outline-none focus-visible:underline",
-                )}
-              >
-                <span className="min-w-0 flex-1 truncate text-label-xs text-text-sub-600">
-                  {thread.title}
-                </span>
-                {thread.count > 1 && <Count value={thread.count} />}
-              </Link>
-            ))}
-
-            {hidden > 0 && (
-              <button
-                type="button"
-                onClick={() => setExpanded(true)}
-                className={cn(
-                  ROW,
-                  "flex w-full py-1.5 pl-0 text-left text-label-xs text-text-soft-400 outline-none hover:text-text-sub-600",
-                )}
-              >
-                + {hidden} more {hidden === 1 ? "thread" : "threads"}
-              </button>
-            )}
-          </div>
-        </Accordion.Content>
-      </Accordion.Item>
-    </Accordion.Root>
   );
 }

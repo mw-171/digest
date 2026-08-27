@@ -35,7 +35,8 @@ function item(spec: Spec): DigestItem {
     subject: spec.purpose,
     snippet: spec.blurb,
     receivedAt: new Date(2026, 7, 20, spec.hour, 14).toISOString(),
-    unread: true,
+    // Mixed on purpose, so the fixture shows both weights.
+    unread: spec.urgency !== "low",
     labels: [],
     tab:
       spec.category === "social"

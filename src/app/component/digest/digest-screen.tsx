@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { CardList, SocialGroups } from "./cards";
+import { CardList, SocialCards } from "./cards";
 import { CATEGORY_BLURB } from "./categories";
 import { CalendarSheet } from "./calendar-sheet";
 import { Column, Footer, Shell } from "./layout-frame";
@@ -215,11 +215,7 @@ export function DayView({
             day={digest.day}
             showTime={digest.day === today}
           />
-          <SocialGroups
-            items={social}
-            day={digest.day}
-            heading={focus === null && rest.length > 0}
-          />
+          <SocialCards items={social} day={digest.day} />
         </>
       )}
 
