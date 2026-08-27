@@ -1,6 +1,10 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useIsRestoring,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import * as React from "react";
 
 import { Toggle } from "./toggle";
@@ -139,17 +143,27 @@ export function DigestClient({
    * Waiting on mail: either the first read of the mailbox, or a day that has
    * not been triaged yet. A cached day answers instantly and never gets here.
    */
-  /** Nothing to show yet: the mailbox has never been read in this session. */
-  const cold = dayResult.data === undefined;
-  /** Showing yesterday's answer while today's is fetched. */
-  const stale = dayResult.isPlaceholderData;
-  const busy = cold || stale;
+  /**
+   * Three states, and never two at once — which is the whole point of deriving
+   * them from one another rather than checking three flags at the render site.
+   *
+   * `restoring` is the moment before the persisted cache has been read back,
+   * when we do not yet know whether there is anything to show. Painting a
+   * skeleton here is what made every reload flash one for a frame.
+   */
+  const restoring = useIsRestoring();
+  const hasData = dayResult.data !== undefined;
+  /** Nothing to show at all: a first load, or a reload with an empty cache. */
+  const cold = !restoring && !hasData;
+  /** Something on screen already, and something better on the way. */
+  const revalidating = hasData && dayResult.isFetching;
+  const busy = restoring || cold || revalidating;
 
   // Both layers outlive the state that raised them, so each one fades out
   // rather than being unmounted mid-transition. Removing an element is not a
   // transition; keeping it and animating its opacity to zero is.
   const coldLayer = useLingering(cold, FADE_MS);
-  const scrim = useLingering(stale, FADE_MS);
+  const scrimLayer = useLingering(revalidating, FADE_MS);
   const overlay = useLingering(busy, FADE_MS);
 
   const select = React.useCallback(
@@ -228,7 +242,9 @@ export function DigestClient({
           <div
             className={cn(
               "flex flex-1 flex-col",
-              stale && "pointer-events-none select-none",
+              // Only while the content belongs to another day. A quiet
+              // revalidation of the day you are on stays tappable.
+              dayResult.isPlaceholderData && "pointer-events-none select-none",
             )}
           >
             {dayResult.data ? (
@@ -245,9 +261,11 @@ export function DigestClient({
             )}
           </div>
 
-          {/* Switching days: the day you were reading stays legible under a
-              wash of the page's own colour. */}
-          {scrim && <Scrim visible={stale} />}
+          {/* Switching days, or re-reading the one you are on: the content
+              stays legible under a wash of the page's own colour. Suppressed
+              while the skeleton is up, so the two can never overlap even
+              through each other's fade. */}
+          {scrimLayer && !coldLayer && <Scrim visible={revalidating} />}
 
           {/*
             The cold-start skeleton, over the content rather than instead of
