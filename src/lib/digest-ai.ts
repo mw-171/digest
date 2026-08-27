@@ -54,7 +54,7 @@ const InsightSchema = z.object({
       blurb: z
         .string()
         .describe(
-          "One plain sentence, at most sixteen words, saying what the message actually says. Written to the reader as 'you'. No trailing period is required and no preamble like 'This email'.",
+          "One plain sentence saying what the message actually says, at most sixteen words — or at most eight when the input is marked headlineOnly. Written to the reader as 'you'. No trailing period is required and no preamble like 'This email'.",
         ),
       category: z.enum(TRIAGE_CATEGORIES),
       urgency: z.enum(URGENCIES),
@@ -99,7 +99,7 @@ export type DayInsights = {
 
 const MODEL = "claude-opus-5";
 // Bump when the prompt or schema changes so old cache entries are ignored.
-const PROMPT_VERSION = 5;
+const PROMPT_VERSION = 6;
 
 const SYSTEM = `You triage one day of a person's Gmail for a daily digest.
 
@@ -156,9 +156,11 @@ already booked. The distinction is shown to the reader, so a dentist
 appointment is an event and the invoice that pays for it is a deadline.
 
 Some messages are given to you as headers only, marked "headlineOnly": true.
-You have their sender, subject and snippet and nothing else. Write a shorter,
-plainer blurb for those from what the subject says, do not invent detail you
-cannot see, and never mark one "high".
+You have their sender, subject and snippet and nothing else. Do not invent
+detail you cannot see and never mark one "high". Their blurb is at most eight
+words, roughly half the length of the others, because these are scanned rather
+than read and the card gives them one line. Write a whole phrase that fits in
+eight words rather than the first eight words of a longer one.
 
 The recap names what actually needs the reader today. Two sentences at the
 very most, and shorter is better. Write plain declarative sentences. Never use
@@ -233,14 +235,29 @@ export function categoryFromLabel(message: DigestMessage): Category {
   return "updates";
 }
 
-/** A snippet, cut to one sentence, standing in for a blurb Claude never wrote. */
-function fallbackBlurb(message: DigestMessage) {
+/**
+ * A snippet, cut to one sentence, standing in for a blurb Claude never wrote.
+ * `maxWords` keeps header-only mail to the one line its card gives it.
+ */
+function fallbackBlurb(message: DigestMessage, maxWords = 0) {
   const text = message.snippet.replace(/\s+/g, " ").trim();
   if (!text) return "";
+
   const sentence = text.match(/^[^.!?]{12,}?[.!?]/)?.[0];
   const value = sentence ?? text;
+
+  if (maxWords) {
+    const words = value.split(" ");
+    return words.length <= maxWords
+      ? value
+      : `${words.slice(0, maxWords).join(" ").replace(/[,;:]$/, "")}…`;
+  }
+
   return value.length > 120 ? `${value.slice(0, 117).trimEnd()}…` : value;
 }
+
+/** Header-only mail gets one line on the card, so its blurb is half as long. */
+const HEADLINE_WORDS = 8;
 
 /**
  * What we show when Claude is unavailable: the subject stands in for the
@@ -279,7 +296,7 @@ function heuristics(
   for (const message of bulk) {
     byId[message.id] = {
       purpose: message.subject,
-      blurb: fallbackBlurb(message),
+      blurb: fallbackBlurb(message, HEADLINE_WORDS),
       due: "",
       dueKind: "none",
       category: categoryFromLabel(message),
