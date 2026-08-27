@@ -10,15 +10,10 @@ import * as React from "react";
 
 import { CACHE_MAX_AGE, CACHE_VERSION } from "@/lib/digest-query";
 
-/** Where the dehydrated cache lives. Cleared when the session ends. */
 export const STORAGE_KEY = "digest-cache";
 
-/**
- * One query cache for the session, persisted to localStorage, so paging
- * between days and reloading both reuse what has already been triaged.
- * `gcTime` must outlive `CACHE_MAX_AGE` or entries are dropped from memory
- * before there is anything worth restoring.
- */
+// One query cache for the session, persisted to localStorage. `gcTime` must
+// outlive `CACHE_MAX_AGE`, or entries are dropped before they can be restored.
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = React.useState(
     () =>
@@ -33,15 +28,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }),
   );
 
-  // On the server there is no localStorage, and a persister built without one
-  // is a no-op — which is exactly right for a render that has nothing to
-  // restore and nothing to save.
   const [persister] = React.useState(() =>
     createSyncStoragePersister({
       storage: typeof window === "undefined" ? undefined : window.localStorage,
       key: STORAGE_KEY,
-      // A full quota is not worth failing over: drop the oldest days and try
-      // again. Whatever is lost costs one refetch.
+      // A full quota costs one refetch, not a failure.
       retry: removeOldestQuery,
     }),
   );
@@ -52,11 +43,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       persistOptions={{
         persister,
         maxAge: CACHE_MAX_AGE,
-        // A shape change invalidates everything stored under the old version.
         buster: CACHE_VERSION,
         dehydrateOptions: {
-          // Never store a failure: a 401 from an expired token would come back
-          // on the next load and read as a fresh one.
+          // Never store a failure: a stale 401 would read as a fresh one.
           shouldDehydrateQuery: (query) => query.state.status === "success",
         },
       }}

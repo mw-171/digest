@@ -1,28 +1,17 @@
 import type * as Avatar from "@/app/component/ui/avatar";
 import type { Category } from "@/lib/digest-ai";
 
-/**
- * The four lanes, as colour — one hue each from the AlignUI ramps, so a tile,
- * ring, avatar and chip in the same category match without a hard-coded hex.
- * Work carries the app's accent because it is why people open the digest;
- * Social is grey because nobody reads it.
- */
+// One hue per lane, from the AlignUI ramps, so every mark for a category
+// matches without a hard-coded hex.
 export type CategoryStyle = {
-  /** The solid swatch: the tile's chip and the stacked volume bar. */
   swatch: string;
-  /** The same hue, drained. For marks that stand for a lane rather than fill it. */
+  /** The same hue, drained. */
   swatchSoft: string;
-  /**
-   * The circle drawn around the sender's face. This is where a card says
-   * which lane it belongs to — a bar down the card's edge said the same thing
-   * louder, and in a stack of ten it read as a stack of ten highlights.
-   */
+  /** Drawn around the sender's face — where a card says which lane it is in. */
   ring: string;
-  /** A quiet fill for the category chip on the detail page. */
   chip: string;
   /** Text at chip strength — readable on `chip`. */
   ink: string;
-  /** Which of AlignUI's avatar colours the sender's face borrows. */
   avatar: React.ComponentProps<typeof Avatar.Root>["color"];
 };
 

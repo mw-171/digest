@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
 
-/**
- * A JSON reply that nothing is allowed to cache. Reloading the tab is this
- * app's only refresh gesture, so every digest response has to come from Gmail
- * rather than from the browser's HTTP cache or a proxy in between.
- */
+/** JSON nothing may cache: a reload has to reach Gmail, not an HTTP cache. */
 export function json(body: unknown, status = 200) {
   return NextResponse.json(body, {
     status,

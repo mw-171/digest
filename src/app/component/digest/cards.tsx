@@ -18,16 +18,7 @@ import { cn } from "@/utils/cn";
 import type { DigestItem } from "@/lib/digest";
 import { gmailThreadUrl } from "@/lib/gmail-url";
 
-/**
- * Rows inside a collapsed group line up with the text inside a message card
- * rather than with the column's own edge — the cards have 13px of padding, so
- * a row flush to the column reads as wider than everything above it.
- */
-/**
- * The card carries no colour of its own. Category lives on the ring around the
- * sender's face, which is one small circle per row instead of a bar down every
- * card in the stack.
- */
+/** No colour of its own: category lives on the ring around the sender's face. */
 const CARD = cn(
   "relative mb-[7px] flex min-h-[58px] w-full items-center gap-3.5 rounded-2xl bg-bg-white-0 p-[13px]",
   "md:min-h-[68px] md:gap-4 md:px-5 md:py-4",
@@ -35,14 +26,8 @@ const CARD = cn(
   "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary-alpha-24",
 );
 
-/**
- * The one thing the corner is allowed to say, in priority order: when a reply
- * is owed, that a reply is owed, when it arrived, nothing.
- *
- * One value, never two. An event's date is deliberately not among them — that
- * is when the thing happens, not a reason to act, and the title already carries
- * it.
- */
+// One value, never two: reply-by date, then that a reply is owed, then the
+// time. An event's date is not among them — that is when, not a reason to act.
 function Corner({
   item,
   day,
@@ -80,12 +65,8 @@ function Corner({
   );
 }
 
-/**
- * Urgency, on the face rather than in the corner: it is independent of whether
- * a reply is owed, so it gets its own channel and the two can coexist. The
- * border is the card's own colour, which is what makes it read as sitting on
- * top of the avatar rather than punched out of it.
- */
+// Urgency on the face, not the corner: it is independent of needing a reply,
+// so the two can coexist. The border is the card's colour, so it reads on top.
 function Face({ item }: { item: DigestItem }) {
   return (
     <span className="relative shrink-0">
@@ -107,11 +88,7 @@ function Face({ item }: { item: DigestItem }) {
   );
 }
 
-/**
- * What the card actually says. The sender leads, because in a list of forty the
- * question is "who" before "what"; under it goes Claude's one-line read, since
- * a subject is what a sender called their mail and a blurb is what it says.
- */
+/** Sender first: in a list of forty the question is "who" before "what". */
 function CardBody({
   sender,
   blurb,
@@ -123,15 +100,11 @@ function CardBody({
 }: {
   sender: string;
   blurb: string;
-  /** Conversation length, shown beside the sender rather than in the corner. */
   count?: number;
-  /** The corner slot. Exactly one value, or nothing. */
   trailing?: React.ReactNode;
-  /** One line at every width, for lanes read by scanning rather than reading. */
   compact?: boolean;
-  /** Already read: the sender steps back so unread mail carries the weight. */
+  /** Read mail steps back so unread carries the weight. */
   read?: boolean;
-  /** Overrides the blurb line entirely — used by invitations. */
   children?: React.ReactNode;
 }) {
   return (
@@ -171,7 +144,6 @@ function CardBody({
   );
 }
 
-/** The ordinary card: who it is from, what it says, and by when. */
 function MessageCard({
   item,
   day,
@@ -200,11 +172,7 @@ function MessageCard({
   );
 }
 
-/**
- * A conversation, as one card: eighteen replies to the same pull request are
- * one thing that happened. Gmail already groups them, so the card names who is
- * in it and how many, and opens on the newest.
- */
+/** A conversation as one card. Opens on the newest message. */
 function ThreadCard({
   thread,
   day,
@@ -237,12 +205,8 @@ function ThreadCard({
   );
 }
 
-/**
- * An invitation — the one message whose four essentials are never in the
- * subject line — so it gets a date block instead of an avatar and a reply row
- * instead of a deadline. Accept and Decline open Gmail, because RSVP is a write
- * and this app holds a read-only scope.
- */
+// Date block instead of an avatar, reply row instead of a deadline. Accept and
+// Decline open Gmail: RSVP is a write and this app is read-only.
 function InviteCard({ item, day }: { item: DigestItem; day: string }) {
   const invite = item.invite!;
   const block = eventDateBlock(invite.start, invite.allDay);
@@ -252,8 +216,6 @@ function InviteCard({ item, day }: { item: DigestItem; day: string }) {
   return (
     <div className={cn(CARD, "flex-col items-stretch gap-0 py-0 md:py-0")}>
       <div className="flex items-center gap-3.5 py-[13px] md:gap-4 md:py-4">
-        {/* The date block is already the Meetings colour, so it needs no ring
-            around it the way a sender's face does. */}
         <span
           aria-hidden
           className={cn(
@@ -271,8 +233,7 @@ function InviteCard({ item, day }: { item: DigestItem; day: string }) {
 
         <span className="min-w-0 flex-1 overflow-hidden">
           <span className="flex items-center justify-between gap-2">
-            {/* Stretched so the whole card opens the message, without nesting
-                a link inside a link the way a wrapping <a> would. */}
+            {/* Stretched, so the whole card opens it without nesting links. */}
             <Link
               href={`/message/${item.id}?date=${day}`}
               className="truncate text-label-sm font-semibold text-text-strong-950 outline-none after:absolute after:inset-0 focus-visible:underline md:text-label-md"
@@ -280,15 +241,17 @@ function InviteCard({ item, day }: { item: DigestItem; day: string }) {
               {invite.cancelled && "Cancelled: "}
               {invite.summary || item.purpose}
             </Link>
-            {!unanswered && !invite.cancelled && invite.status !== "unknown" && (
-              <span className="shrink-0 text-label-xs text-text-soft-400">
-                {invite.status === "accepted"
-                  ? "Going"
-                  : invite.status === "declined"
-                    ? "Not going"
-                    : "Maybe"}
-              </span>
-            )}
+            {!unanswered &&
+              !invite.cancelled &&
+              invite.status !== "unknown" && (
+                <span className="shrink-0 text-label-xs text-text-soft-400">
+                  {invite.status === "accepted"
+                    ? "Going"
+                    : invite.status === "declined"
+                      ? "Not going"
+                      : "Maybe"}
+                </span>
+              )}
           </span>
           <span className="mt-0.5 block truncate text-label-xs text-text-sub-600 md:mt-1 md:text-label-sm">
             {formatEventTime(invite.start, invite.allDay)}
@@ -324,7 +287,6 @@ function InviteCard({ item, day }: { item: DigestItem; day: string }) {
   );
 }
 
-/** Whichever card this message deserves. */
 function ThreadEntry({
   thread,
   day,
@@ -345,9 +307,9 @@ function ThreadEntry({
         compact={compact}
       />
     );
-  // An invitation shows its event's time, which matters whatever day you are
-  // reading — that is not the same fact as when the mail arrived.
-  if (thread.latest.invite) return <InviteCard item={thread.latest} day={day} />;
+  // An invite shows its event's time, not when the mail arrived.
+  if (thread.latest.invite)
+    return <InviteCard item={thread.latest} day={day} />;
   return (
     <MessageCard
       item={thread.latest}
@@ -358,13 +320,7 @@ function ThreadEntry({
   );
 }
 
-/**
- * A stack of cards, threaded.
- *
- * Threading groups by conversation, which reorders nothing on its own — the
- * threads come out in the order their newest message did, so whichever sort
- * the caller applied upstream still holds.
- */
+/** A stack of cards, threaded. Threading reorders nothing on its own. */
 export function CardList({
   items,
   day,
@@ -373,9 +329,7 @@ export function CardList({
 }: {
   items: DigestItem[];
   day: string;
-  /** Only today's digest carries arrival times. See {@link DayView}. */
   showTime?: boolean;
-  /** One-line blurbs, for Social. */
   compact?: boolean;
 }) {
   return (
@@ -393,12 +347,8 @@ export function CardList({
   );
 }
 
-/**
- * Social, as cards like everything else — no heading, because no other lane
- * gets one and a rule across the list only asked what it was for. The ring on
- * each sender's face already says which lane this is, and the blurbs are held
- * to one line because these are scanned rather than read.
- */
+// Cards like every other lane, and no heading: no other lane gets one. Blurbs
+// stay one line because these are scanned rather than read.
 export function SocialCards({
   items,
   day,
@@ -406,7 +356,6 @@ export function SocialCards({
 }: {
   items: DigestItem[];
   day: string;
-  /** Today's mail carries its arrival time, in this lane like any other. */
   showTime?: boolean;
 }) {
   if (items.length === 0) return null;

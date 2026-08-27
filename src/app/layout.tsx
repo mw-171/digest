@@ -9,10 +9,7 @@ const inter = FontSans({
   variable: "--font-sans",
 });
 
-/**
- * Where the app is served from. Link scrapers need absolute URLs, so a preview
- * card built from relative paths shows nothing at all.
- */
+// Link scrapers need absolute URLs, so relative paths show nothing.
 const site =
   process.env.NEXT_PUBLIC_SITE_URL ??
   (process.env.VERCEL_PROJECT_PRODUCTION_URL
@@ -24,39 +21,27 @@ const TAGLINE = "your day at a glance!";
 
 export const metadata: Metadata = {
   metadataBase: new URL(site),
-  // `template` lets a page name itself without repeating the product.
   title: { default: NAME, template: `%s · ${NAME}` },
   description: TAGLINE,
   icons: {
     icon: "/mailbox_with_mail.png",
     shortcut: "/mailbox_with_mail.png",
-    // iOS reaches for this one when it has no card image to show.
-    apple: "/mailbox_with_mail.png",
+    // 180px, which is what iOS asks for and what Messages puts beside a link.
+    apple: "/apple-touch-icon.png",
   },
-  // What Messages, Slack and the rest read. Without these there is nothing to
-  // build a card from, so they fall back to the first icon they find.
+  // No `og:image` on purpose: Messages builds a full-bleed card whenever a page
+  // offers one. With only an icon it falls back to the compact style.
   openGraph: {
     type: "website",
     siteName: NAME,
     title: NAME,
     description: TAGLINE,
     url: site,
-    images: [
-      {
-        url: "/mailbox_with_mail.png",
-        width: 160,
-        height: 160,
-        alt: `${NAME} — a daily digest of your Gmail`,
-      },
-    ],
   },
   twitter: {
-    // "summary", not "summary_large_image": the icon is square, and the wide
-    // card would letterbox it into a mostly empty banner.
     card: "summary",
     title: NAME,
     description: TAGLINE,
-    images: ["/mailbox_with_mail.png"],
   },
 };
 

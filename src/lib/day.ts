@@ -1,8 +1,5 @@
-/**
- * Date helpers shared by server and client, kept free of Node and Google
- * imports so client components do not drag `googleapis` into the bundle.
- * A "day" is always `YYYY-MM-DD` in the running machine's timezone.
- */
+// Shared by server and client, so no Node or Google imports. A "day" is always
+// `YYYY-MM-DD` in the running machine's timezone.
 
 /** `YYYY-MM-DD` for the given date, in local time. */
 export function toDayString(date = new Date()) {
@@ -42,7 +39,6 @@ const shift = (day: string, by: number) => {
 const endingOn = (end: string, length: number) =>
   Array.from({ length }, (_, index) => shift(end, index - (length - 1)));
 
-/** The seven days starting at `anchor`. The rail is always exactly this. */
 export function windowFrom(anchor: string) {
   return Array.from({ length: RAIL_DAYS }, (_, index) => shift(anchor, index));
 }
@@ -52,12 +48,8 @@ export function anchoredWindow(today = toDayString()) {
   return endingOn(today, RAIL_DAYS);
 }
 
-/**
- * Where the rail should start to show `day`: the window ending today if `day`
- * falls inside it, otherwise centred on `day` and pulled back from the future.
- * Only the date picker re-centres — stepping between pills leaves the rail
- * where it is, so the selection slides rather than the strip jumping.
- */
+// The window ending today if `day` is in it, else centred on `day`. Only the
+// date picker re-centres; stepping between pills leaves the rail put.
 export function recentreAnchor(day: string, today = toDayString()) {
   const anchored = anchoredWindow(today);
   if (anchored.includes(day)) return anchored[0];
@@ -68,7 +60,6 @@ export function recentreAnchor(day: string, today = toDayString()) {
 }
 
 
-/** One pill in the rail. Everything here is calendar, not mailbox. */
 export type RailDay = {
   day: string;
   weekday: string;
@@ -77,12 +68,8 @@ export type RailDay = {
   isToday: boolean;
 };
 
-/**
- * The rail's pills, labels and all — a calendar question, so it needs no
- * network and renders immediately while only the volume pips wait. Called in
- * the browser for the live digest, so weekday names come out in the reader's
- * locale, and the window is passed in because the page owns it.
- */
+// A calendar question, so no network. Called in the browser, so weekday names
+// come out in the reader's locale.
 export function railDays(
   window: string[],
   day: string,
@@ -138,12 +125,8 @@ export function daysBetween(from: string, to: string) {
   );
 }
 
-/**
- * A date on a card, counted from the day on screen rather than from now, so
- * browsing back cannot turn last Tuesday's "tomorrow" into something overdue.
- * "by" is for deadlines and "on" for events — a meeting happens on the 28th,
- * it is not due by it.
- */
+// Counted from the day on screen, not from now, or browsing back turns last
+// Tuesday's "tomorrow" into something overdue. "by" deadlines, "on" events.
 export function formatDeadline(
   due: string,
   day: string,
@@ -170,12 +153,8 @@ export function formatDeadline(
   };
 }
 
-/**
- * The reply-by tag: always "Reply by Aug 29", never "Reply tomorrow". One
- * shape means the date is in the same place on every card, and a date is
- * unambiguous where a relative word has to be resolved against the day on
- * screen rather than against today.
- */
+// Always "Reply by Aug 29", never "Reply tomorrow": one shape, and no relative
+// word to resolve against the day on screen.
 export function replyBy(due: string, day: string) {
   if (!isValidDay(due)) return null;
 
@@ -188,11 +167,8 @@ export function replyBy(due: string, day: string) {
   return `Reply by ${stamp}`;
 }
 
-/**
- * The clock on a card: "10:02 AM". The day period is rebuilt rather than taken
- * as formatted, because a locale may render it "a.m." or "p.m." and the cards
- * want one shape. A 24-hour locale has none, and keeps "14:57".
- */
+// "10:02 AM". The period is rebuilt because a locale may format it "p.m.";
+// a 24-hour locale has none and keeps "14:57".
 export function clockTime(at: string) {
   const date = new Date(at);
   if (Number.isNaN(date.getTime())) return "";

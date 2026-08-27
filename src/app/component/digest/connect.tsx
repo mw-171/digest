@@ -72,4 +72,3 @@ export function Connect({ error }: { error?: string | null }) {
     </Column>
   );
 }
-

@@ -22,19 +22,12 @@ import {
   type DigestOptions,
 } from "@/lib/digest-query";
 
-/** How long every fade in this screen takes. */
 const FADE_MS = 500;
 
-/**
- * How long a fetch may run before it earns an indicator. Anything answered
- * inside this is quick enough that showing "Digesting…" only flashes.
- */
+/** A fetch answered inside this never earns an indicator. */
 const SHOW_DELAY_MS = 200;
 
-/**
- * `on`, but held true for `ms` after it goes false. A layer that unmounts the
- * moment its reason disappears cannot fade out; this keeps it long enough to.
- */
+/** `on`, held for `ms` after it goes false — long enough to fade out. */
 function useLingering(on: boolean, ms: number) {
   const [alive, setAlive] = React.useState(on);
 
@@ -50,11 +43,7 @@ function useLingering(on: boolean, ms: number) {
   return alive;
 }
 
-/**
- * `on`, but only once it has been true for `ms`. The mirror of
- * {@link useLingering}: that one holds a layer open long enough to fade out,
- * this one keeps it shut until the wait is worth mentioning.
- */
+/** `on`, but only once it has been true for `ms`. */
 function useDelayed(on: boolean, ms: number) {
   const [late, setLate] = React.useState(false);
 
@@ -71,15 +60,9 @@ function useDelayed(on: boolean, ms: number) {
 }
 
 /**
- * False until React has hydrated.
- *
- * The server renders this screen with no data, but the persisted cache can be
- * restored before React reaches the subtree — so the first client render had
- * the digest where the server's HTML had a placeholder. React cannot reconcile
- * that and rebuilds the whole tree, which is what made a hard reload flicker
- * and restarted the spinner a quarter of the way round. Holding the first
- * client render to what the server sent makes the two identical by
- * construction; the cache lands one frame later, as an ordinary update.
+ * False until React has hydrated. The persisted cache can restore before React
+ * reaches this subtree, and rendering that data on the first pass makes the
+ * client disagree with the server's HTML — React then rebuilds the whole tree.
  */
 function useHydrated() {
   const [hydrated, setHydrated] = React.useState(false);
@@ -106,13 +89,7 @@ function ErrorPanel({ error }: { error: unknown }) {
   );
 }
 
-/**
- * The digest, driven by the client query cache.
- *
- * Picking a day never round-trips the router: the day is component state, the
- * URL is kept in step with `replaceState`, and both queries answer from cache
- * when that day has already been triaged.
- */
+/** The digest. Picking a day is component state, never a router round-trip. */
 export function DigestClient({
   initialDay,
   today: serverToday,
@@ -123,19 +100,12 @@ export function DigestClient({
   initialAi: boolean;
 }) {
   const [day, setDay] = React.useState(initialDay);
-  /**
-   * The server's clock is not the reader's — on Vercel it is UTC, which turns
-   * over while most of the world is still on the previous evening. The first
-   * paint has to use what the server sent, but from mount on, "today" is the
-   * browser's, and a selection the server thought was today is pulled back if
-   * that turns out to be tomorrow where the reader is.
-   */
+  // The server's clock is UTC on Vercel, which turns over while most of the
+  // world is still on the previous evening. From mount on, today is the
+  // browser's.
   const [today, setToday] = React.useState(serverToday);
-  /**
-   * Which seven days the rail is showing, as its first day. State rather than a
-   * function of the selection, or every tap in a past week would re-centre the
-   * strip under your finger; only the date picker moves it.
-   */
+  // The rail's window, as its first day. State rather than derived from the
+  // selection, or every tap in a past week would re-centre it.
   const [anchor, setAnchor] = React.useState(() =>
     recentreAnchor(initialDay, serverToday),
   );
@@ -146,7 +116,6 @@ export function DigestClient({
     setToday(local);
     setDay((current) => (current > local ? local : current));
     setAnchor((current) =>
-      // Only re-anchor a rail that was still sitting on the server's today.
       current === recentreAnchor(serverToday, serverToday)
         ? recentreAnchor(local, local)
         : current,
@@ -154,7 +123,6 @@ export function DigestClient({
   }, [serverToday]);
 
   const [focus, setFocus] = React.useState<Category | null>(null);
-  // Sort is a habit, not a property of the day, so it survives paging back.
   const [sort, setSort] = React.useState<SortMode>("priority");
   const [options, setOptions] = React.useState<DigestOptions>({
     useAi: initialAi,
@@ -165,12 +133,9 @@ export function DigestClient({
   const weekResult = useQuery(weekQuery(anchor));
 
   const hydrated = useHydrated();
-  /** Everything below reads this, never `dayResult.data`, so one gate covers
-   *  the whole screen. */
   const digest = hydrated ? dayResult.data : undefined;
 
-  // The pills are a calendar, so they are computed here and always rendered.
-  // The volumes are a mailbox, so they are folded in whenever they arrive.
+  // Pills are a calendar and need no network; volumes fold in when they land.
   const volumes = hydrated ? weekResult.data : undefined;
   const week = React.useMemo(
     () =>
@@ -183,39 +148,18 @@ export function DigestClient({
     [anchor, day, today, volumes],
   );
 
-  /**
-   * Waiting on mail: either the first read of the mailbox, or a day that has
-   * not been triaged yet. A cached day answers instantly and never gets here.
-   */
-  /**
-   * Three states, and never two at once — which is the whole point of deriving
-   * them from one another rather than checking three flags at the render site.
-   *
-   * The skeleton covers every moment there is nothing to show, the read-back
-   * of the persisted cache included. Suppressing it there left a blank frame
-   * between the route's own skeleton and the content — which is what made a
-   * hard reload flicker.
-   */
+  // Derived from one another so the two loading states can never both show.
+  // `cold` is nothing to display at all; `waiting` is the wrong day on screen
+  // while the right one loads. A day we already hold shows at once.
   const hasData = digest !== undefined;
-  /** Nothing to show at all: still restoring, or a load with an empty cache. */
   const cold = !hasData;
-  /**
-   * Waiting on a day we have never loaded, so what is on screen belongs to a
-   * different one. A day we already hold is shown at once and re-read behind
-   * it — most past days come back unchanged, and covering them for two seconds
-   * to prove it was the reason "Digesting…" appeared on nearly every tap.
-   *
-   * Delayed, so a fetch that lands quickly never flashes an indicator at all.
-   */
   const waiting = useDelayed(
     hydrated && dayResult.isPlaceholderData,
     SHOW_DELAY_MS,
   );
   const busy = cold || waiting;
 
-  // Both layers outlive the state that raised them, so each one fades out
-  // rather than being unmounted mid-transition. Removing an element is not a
-  // transition; keeping it and animating its opacity to zero is.
+  // Each layer outlives its state so it can fade out. Unmounting is not a fade.
   const coldLayer = useLingering(cold, FADE_MS);
   const scrimLayer = useLingering(waiting, FADE_MS);
   const overlay = useLingering(busy, FADE_MS);
@@ -224,21 +168,16 @@ export function DigestClient({
     (next: string) => {
       if (next > today) return;
       setDay(next);
-      // A filter belongs to the day it was set on. Carrying "Meetings" into a
-      // day with no meetings would land on an empty screen for no reason.
+      // A filter belongs to the day it was set on.
       setFocus(null);
       window.history.pushState(null, "", `/?date=${next}`);
     },
     [today],
   );
 
-  /** A pill: the rail keeps its place and only the selection moves. */
   const selectFromRail = select;
 
-  /**
-   * The date picker: the one way to leave the current window. If the date is
-   * already on the rail nothing moves; otherwise the rail re-centres on it.
-   */
+  /** The only way to leave the current window: re-centres if the date is off it. */
   const selectFromPicker = React.useCallback(
     (next: string) => {
       if (next > today) return;
@@ -250,12 +189,8 @@ export function DigestClient({
     [anchor, select, today],
   );
 
-  /**
-   * Hold the page still while anything is loading. A list that scrolls under a
-   * dimmed overlay invites reading content that is on its way out, and on a
-   * phone a scroll begun mid-swap lands somewhere arbitrary once the new day
-   * changes the page's height.
-   */
+  // Hold the page still while loading: a scroll begun mid-swap lands somewhere
+  // arbitrary once the new day changes the page's height.
   React.useEffect(() => {
     if (!busy) return;
 
@@ -287,9 +222,8 @@ export function DigestClient({
     return () => window.removeEventListener("popstate", onPop);
   }, [today]);
 
-  // People page backwards through a digest, so warm exactly one day back —
-  // enough to make the next tap instant without paying Claude for days nobody
-  // opens. Waits for the current day so the two never compete.
+  // Warm exactly one day back — people page backwards. Waits for the current
+  // day so the two never compete.
   React.useEffect(() => {
     if (!dayResult.isSuccess) return;
     const target = previousDay(day);
@@ -308,10 +242,6 @@ export function DigestClient({
       {dayResult.isError ? (
         <ErrorPanel error={dayResult.error} />
       ) : (
-        // One box for both waits. Switching days blurs the day you were
-        // reading and holds it there; a cold start blurs the skeleton instead.
-        // Either way the indicator sits in the same place, so arriving from
-        // the connect screen and paging between days look like one app.
         <main id="content" className="relative flex flex-1 flex-col">
           <div
             className={cn(
@@ -333,17 +263,11 @@ export function DigestClient({
             )}
           </div>
 
-          {/* The day you were reading stays legible under a wash of the page's
-              own colour. Suppressed while the skeleton is up, so the two can
-              never overlap even through each other's fade. */}
+          {/* Suppressed while the skeleton is up, so the two never overlap. */}
           {scrimLayer && !coldLayer && <Scrim visible={waiting} />}
 
-          {/*
-            The cold-start skeleton, over the content rather than instead of
-            it. Opaque while it waits, then dissolved — so the real digest is
-            already laid out and sharp underneath by the time it shows through,
-            and the swap is one fade with nothing blank in the middle.
-          */}
+          {/* Over the content, not instead of it, so the swap is one fade with
+              nothing blank in the middle. */}
           {coldLayer && (
             <div
               className={cn(
@@ -379,4 +303,3 @@ export function DigestClient({
     </Shell>
   );
 }
-

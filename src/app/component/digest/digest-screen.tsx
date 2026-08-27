@@ -6,13 +6,7 @@ import { CardList, SocialCards } from "./cards";
 import { CATEGORY_BLURB } from "./categories";
 import { CalendarSheet } from "./calendar-sheet";
 import { Column, Footer, Shell } from "./layout-frame";
-import {
-  FocusRule,
-  QuietRule,
-  Tiles,
-  VolumeBar,
-  type SortMode,
-} from "./tiles";
+import { FocusRule, QuietRule, Tiles, VolumeBar, type SortMode } from "./tiles";
 import { WeekRail } from "./week-rail";
 import * as Button from "@/app/component/ui/button";
 import { formatDayTitle, formatPillDate, toDayString } from "@/lib/day";
@@ -21,13 +15,8 @@ import type { DayDigest, Digest, DigestItem } from "@/lib/digest";
 
 export { Column, Footer, Shell };
 
-
-
-/**
- * The sticky header: the week, the date, and the way to any other date, and
- * nothing else. The recap, bar and tiles belong to the day being read rather
- * than to choosing one, so they scroll away with the mail they describe.
- */
+// The week, the date, and the way to another — nothing that belongs to the day
+// being read, which scrolls away with the mail it describes.
 export function HeaderFrame({
   day,
   today,
@@ -35,13 +24,11 @@ export function HeaderFrame({
   onSelectDay,
 }: {
   day: string;
-  /** Omitted by the fixture route, which has no live clock. */
   today?: string;
   rail: React.ReactNode;
   onSelectDay?: (day: string) => void;
 }) {
   const title = formatDayTitle(day);
-  // Nothing to go back to when you are already there.
   const away = today !== undefined && day !== today;
 
   return (
@@ -54,12 +41,8 @@ export function HeaderFrame({
             {title.weekday}
           </h1>
           <div className="flex shrink-0 items-center gap-2">
-            {/*
-              The way back, as today's date rather than the word for it: a
-              square the same height as the date pill instead of a second
-              label competing with it. It rides with the date rather than
-              living in the picker, so returning never costs opening one.
-            */}
+            {/* Today's date, not the word: a square beside the date pill rather
+                than a second label competing with it. */}
             {away && (
               <Button.Root
                 asChild={!onSelectDay}
@@ -90,7 +73,6 @@ export function HeaderFrame({
   );
 }
 
-/** The day in a sentence. */
 export function RecapLine({ text }: { text: string }) {
   if (!text) return null;
 
@@ -118,8 +100,6 @@ export function Empty({ day }: { day: string }) {
       <p className="mt-2 text-paragraph-sm text-text-sub-600">
         Nothing arrived on {title.long}.
       </p>
-      {/* The only way out of a day with nothing in it, so it is the one filled
-          button on the screen rather than a quiet outline. */}
       <Button.Root
         asChild
         variant="neutral"
@@ -134,7 +114,13 @@ export function Empty({ day }: { day: string }) {
 }
 
 /** Nothing in the lane you picked, but plenty in the others. */
-function EmptyLane({ category, onClear }: { category: Category; onClear: () => void }) {
+function EmptyLane({
+  category,
+  onClear,
+}: {
+  category: Category;
+  onClear: () => void;
+}) {
   return (
     <div className="flex flex-col items-center px-8 py-16 text-center">
       <p className="text-label-md text-text-strong-950">Nothing here today</p>
@@ -157,12 +143,8 @@ function EmptyLane({ category, onClear }: { category: Category; onClear: () => v
 const byNewest = (a: DigestItem, b: DigestItem) =>
   b.receivedAt.localeCompare(a.receivedAt);
 
-/**
- * The day itself: a sentence, the bar, the four tiles, and whatever they left.
- * Priority order arrives already applied from the server, so switching to
- * Recent never refetches; Social collapses into sender rows rather than cards,
- * however the tiles are filtered.
- */
+// Priority order arrives applied from the server, so switching to Recent
+// never refetches.
 export function DayView({
   digest,
   today,
@@ -172,12 +154,7 @@ export function DayView({
   onSort,
 }: {
   digest: DayDigest;
-  /**
-   * Arrival times are shown only on today's digest. On a day already behind
-   * you "2:57 PM" answers a question nobody asked — the ordering already says
-   * what came first — and it costs the top line the room a deadline or a
-   * thread count can use instead.
-   */
+  /** Times show only on today: on a past day they answer nobody's question. */
   today?: string;
   focus: Category | null;
   onFocus: (next: Category | null) => void;
@@ -194,18 +171,17 @@ export function DayView({
   const social = visible.filter((item) => item.category === "social");
   const rest = visible.filter((item) => item.category !== "social");
   const label = focus
-    ? (digest.categories.find((group) => group.key === focus)?.title ?? "Everything")
+    ? (digest.categories.find((group) => group.key === focus)?.title ??
+      "Everything")
     : "Everything";
 
-  // Grouping is a property of the priority order — in Recent the list is
-  // deliberately chronological, and cutting it in two would contradict that.
-  // A filtered lane is already one subset and does not want a second.
-  const wants = (item: DigestItem) => item.needsReply || item.urgency === "high";
+  // Only in Priority: Recent is deliberately chronological, and a filtered
+  // lane is already one subset.
+  const wants = (item: DigestItem) =>
+    item.needsReply || item.urgency === "high";
   const grouped = sort === "priority" && focus === null;
   const topOfMind = grouped ? rest.filter(wants) : [];
   const others = grouped ? rest.filter((item) => !wants(item)) : rest;
-  // A quiet day is one clean list, not an empty section and a label for the
-  // remainder of nothing.
   const split = topOfMind.length > 0;
 
   return (
@@ -265,14 +241,11 @@ export function DayView({
   );
 }
 
-
-/** Fully-resolved digest, no suspense. Used by the fixture route. */
 export function DigestScreen({
   digest,
   today,
 }: {
   digest: Digest;
-  /** The fixture's "now", which need not be the day being shown. */
   today?: string;
 }) {
   const [focus, setFocus] = React.useState<Category | null>(null);

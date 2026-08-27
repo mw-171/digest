@@ -1,12 +1,7 @@
 import { parse, NodeType, type HTMLElement, type Node } from "node-html-parser";
 
-/**
- * Turning an email into something readable: a marketing email is nested layout
- * tables written for a 2003 renderer, so we keep only what carries meaning —
- * headings, paragraphs, lists, links, quoted replies — as {@link Block}s in the
- * app's own typography. Layout is dropped on purpose; the original is one tap
- * away in Gmail.
- */
+// A marketing email is nested layout tables for a 2003 renderer, so we keep
+// only what carries meaning as {@link Block}s. Layout is dropped on purpose.
 
 /** A stretch of text, optionally a link. */
 export type Run = { text: string; href?: string };
@@ -467,12 +462,8 @@ export function plainText(blocks: Block[]) {
     .join("\n\n");
 }
 
-/**
- * Is this a message someone typed, rather than a page someone designed? A real
- * exchange is worth showing under the summary; a newsletter is not, since what
- * made it readable is exactly what we threw away — the tells being pictures,
- * headings, length and a thicket of links.
- */
+// Typed, or designed? A newsletter is not worth showing under the summary:
+// what made it readable is exactly what we threw away.
 export function isConversational(body: ReadableBody) {
   const { blocks } = body;
   if (blocks.length === 0 || blocks.length > 30) return false;

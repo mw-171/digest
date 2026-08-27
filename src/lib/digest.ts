@@ -67,11 +67,8 @@ async function client() {
   return auth;
 }
 
-/**
- * Volumes for the seven days starting at `start` — ids only, so the rail can
- * render while the day is still being triaged. The caller picks the window and
- * owns `selected`; `cache` dedupes within a render.
- */
+// Ids only, so the rail renders while the day is still being triaged. The
+// caller picks the window and owns `selected`.
 export const getWeek = cache(async (start: string): Promise<WeekDay[]> => {
   const today = toDayString();
   const days = windowFrom(start);
@@ -99,11 +96,8 @@ const reader = cache(async () =>
   fetchAccountEmail(await client()).catch(() => ""),
 );
 
-/**
- * The order the day is read in: urgency first, since that is the judgement the
- * model was asked for, then whether anything is being asked, then the nearest
- * date. Arrival time is the weakest signal and decides nothing but ties.
- */
+// Urgency, then whether anything is asked, then the nearest date. Arrival
+// time is the weakest signal and decides nothing but ties.
 function byPriority(a: DigestItem, b: DigestItem) {
   const urgency = URGENCY_RANK[a.urgency] - URGENCY_RANK[b.urgency];
   if (urgency !== 0) return urgency;
@@ -143,19 +137,16 @@ export const getDay = cache(
       return {
         ...message,
         ...insight,
-        // Whatever the model called it, a message carrying an invitation is
-        // about a scheduled thing, and its date is when that thing happens.
+        // An invitation is about a scheduled thing, whatever the model called it.
         category: message.invite ? "meetings" : insight.category,
         dueKind: message.invite ? ("event" as const) : insight.dueKind,
-        // The model reads "your invoice is ready" as a request. Nothing a
-        // no-reply address sends is waiting on an answer.
+        // Nothing a no-reply address sends is waiting on an answer.
         needsReply: insight.needsReply && !message.automated,
       };
     };
 
     const items = [
-      // The body stays on the server. It was downloaded for the model, and
-      // fifty of them would dwarf everything else the page sends.
+      // The body stays on the server: fifty would dwarf the rest of the page.
       ...signal.map(({ text, ...message }) => {
         void text;
         return withInsight(message);

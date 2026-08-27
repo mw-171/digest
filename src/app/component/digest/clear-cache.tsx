@@ -5,11 +5,7 @@ import * as React from "react";
 
 import { STORAGE_KEY } from "@/app/providers";
 
-/**
- * Empties the persisted digest cache, from the signed-out screen — the one
- * place we know there is no session. Subject lines and sender names should not
- * outlive the connection they came from.
- */
+/** Empties the persisted cache. Rendered signed-out, where there is no session. */
 export function ClearCache() {
   const client = useQueryClient();
 
@@ -18,7 +14,7 @@ export function ClearCache() {
     try {
       window.localStorage.removeItem(STORAGE_KEY);
     } catch {
-      // Private mode, or storage disabled. Nothing was persisted either way.
+      // Private mode: nothing was persisted anyway.
     }
   }, [client]);
 

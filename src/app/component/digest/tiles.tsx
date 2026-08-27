@@ -8,11 +8,7 @@ import { cn } from "@/utils/cn";
 import type { Category } from "@/lib/digest-ai";
 import type { CategoryGroup } from "@/lib/digest";
 
-/**
- * The two orders a day can be read in. "priority" is the model's answer, ranked
- * on the urgency Claude assigned; "recent" is the mailbox's, and the one to
- * fall back on when you already know what you are looking for.
- */
+/** "priority" is Claude's ranking; "recent" is the mailbox's. */
 export type SortMode = "priority" | "recent";
 
 export const SORT_LABEL: Record<SortMode, string> = {
@@ -25,11 +21,7 @@ const SORT_HINT: Record<SortMode, string> = {
   recent: "Newest mail first",
 };
 
-/**
- * The day as one bar: four segments, each as wide as its share of the mail. It
- * answers "what kind of day was this" before a row is read, and is the legend
- * for every colour further down.
- */
+/** The day as one bar, and the legend for every colour further down. */
 export function VolumeBar({
   categories,
   focus,
@@ -55,17 +47,15 @@ export function VolumeBar({
             onClick={() => onFocus(active ? null : group.key)}
             aria-pressed={active}
             aria-label={`${group.title}, ${group.count}`}
-            // The bar is 8px of colour, which is far under a thumb. The padding
-            // is pulled back out with a negative margin, so the target is 24px
-            // tall while the segment still reads as a hairline.
+            // 8px is under a thumb; padding pulled back out by a negative
+            // margin gives a 24px target without thickening the bar.
             className="group -my-2 shrink-0 py-2 outline-none"
           >
             <span
               className={cn(
                 "block h-2 rounded transition-opacity duration-200 ease-out",
                 CATEGORY_STYLE[group.key].swatch,
-                // Dimming the others is what says a filter is on; the segment
-                // is too thin to carry a ring or a border.
+                // Too thin for a ring, so a filter shows by dimming the rest.
                 focus !== null && !active && "opacity-30",
                 "group-hover:opacity-100 group-focus-visible:ring-2 group-focus-visible:ring-primary-alpha-24",
               )}
@@ -77,11 +67,7 @@ export function VolumeBar({
   );
 }
 
-/**
- * One tile: a count, a name, and how much of it wants something back. Tapping
- * filters the list rather than navigating, so a tile is a toggle — which is the
- * whole interaction model here: four numbers, any of which can become the list.
- */
+/** A tile is a toggle: it filters the list rather than navigating. */
 function Tile({
   group,
   active,
@@ -120,8 +106,7 @@ function Tile({
           <span className="text-label-xs font-medium text-text-sub-600 md:text-label-sm">
             {group.title}
           </span>
-          {/* How many of this lane's messages are waiting on a reply. `↩` was a
-              text arrow, which iOS renders as a colour emoji. */}
+          {/* Waiting on a reply. An icon, not `↩` — iOS renders that as emoji. */}
           {group.replies > 0 && (
             <span
               title={`${group.replies} waiting on a reply`}
@@ -137,7 +122,7 @@ function Tile({
   );
 }
 
-/** The four tiles, always all four, so the shape of the grid never moves. */
+/** Always all four, so the grid never changes shape. */
 export function Tiles({
   categories,
   focus,
@@ -161,7 +146,6 @@ export function Tiles({
   );
 }
 
-/** One line of the sort menu: what it is called, and what it does. */
 function SortOption({
   mode,
   current,
@@ -196,12 +180,7 @@ function SortOption({
   );
 }
 
-/**
- * The rule between the tiles and the list.
- *
- * It names whatever the tiles left, and carries the one control that changes
- * the list without changing what is in it: the order.
- */
+/** Names whatever the tiles left, and carries the sort control. */
 export function FocusRule({
   label,
   count,
@@ -211,7 +190,6 @@ export function FocusRule({
   onSort,
 }: {
   label: string;
-  /** Shown beside the label, for a heading that names a subset. */
   count?: number;
   filtered: boolean;
   onClear: () => void;
@@ -268,12 +246,8 @@ export function FocusRule({
   );
 }
 
-/**
- * The second divider, for what is left once the things that want you are out of
- * the way. Deliberately quieter than {@link FocusRule}: lowercase, unweighted
- * and soft, so the eye reads it as the end of the important part rather than as
- * the start of another section.
- */
+// Quieter than {@link FocusRule} on purpose: the end of the important part,
+// not the start of another section.
 export function QuietRule({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-2 pb-2 pt-6">
@@ -284,4 +258,3 @@ export function QuietRule({ label }: { label: string }) {
     </div>
   );
 }
-

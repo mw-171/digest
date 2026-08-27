@@ -15,11 +15,7 @@ export const DEFAULT_REDIRECT_URI = `${DEFAULT_ORIGIN}${CALLBACK_PATH}`;
 
 export type OAuthClient = ReturnType<typeof oauthClient>;
 
-/**
- * Hosts that are reached without TLS when nothing says otherwise: loopback,
- * and the private ranges a dev server is on when a phone opens it over the
- * same wifi.
- */
+/** Loopback and private ranges — a dev server a phone opens over wifi. */
 function isLocal(host: string) {
   const name = host.replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
   return (
@@ -33,12 +29,8 @@ function isLocal(host: string) {
   );
 }
 
-/**
- * The origin this request actually arrived on. Behind a TLS-terminating proxy
- * `Host` is internal and the public name is in `x-forwarded-host`, so the
- * forwarded pair wins; `x-forwarded-proto` may be a list, and the first entry
- * is the client's.
- */
+// Behind a proxy `Host` is internal, so `x-forwarded-host` wins.
+// `x-forwarded-proto` may be a list; the first entry is the client's.
 export function originFromHeaders(headers: Headers) {
   const host = headers.get("x-forwarded-host") ?? headers.get("host");
   if (!host) return null;
@@ -49,12 +41,8 @@ export function originFromHeaders(headers: Headers) {
   return `${protocol}://${host}`;
 }
 
-/**
- * Where Google sends the user back to, derived from the request so one build
- * works on localhost, previews and production; `GOOGLE_REDIRECT_URI` overrides.
- * Google matches it exactly, and the authorize and exchange legs must send the
- * same string — both read the same headers, so they agree.
- */
+// Derived from the request, so one build works everywhere. Google matches it
+// exactly, and the authorize and exchange legs must send the same string.
 export function redirectUriFromHeaders(headers: Headers) {
   if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI;
 
@@ -72,10 +60,7 @@ export function isConfigured() {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 }
 
-/**
- * `redirect` matters only for the two legs of the consent flow, where it has
- * to match what Google was told. Refreshing an existing token never uses it.
- */
+/** `redirect` matters only during consent; refreshing a token never uses it. */
 export function oauthClient(redirect: string = DEFAULT_REDIRECT_URI) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -89,10 +74,7 @@ export function oauthClient(redirect: string = DEFAULT_REDIRECT_URI) {
   return new google.auth.OAuth2(clientId, clientSecret, redirect);
 }
 
-/**
- * An OAuth client primed with the stored refresh token, or `null` when the
- * user hasn't connected Gmail yet. googleapis mints access tokens as needed.
- */
+/** Primed with the stored refresh token, or null when not connected. */
 export async function authorizedClient(): Promise<OAuthClient | null> {
   const refreshToken = (await cookies()).get(TOKEN_COOKIE)?.value;
   if (!refreshToken) return null;

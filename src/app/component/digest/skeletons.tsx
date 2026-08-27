@@ -6,7 +6,6 @@ import { Column } from "./layout-frame";
 const TILES = [1, 2, 3, 4];
 const ROWS = [1, 2, 3, 4];
 
-
 /** The recap line, which scrolls with the mail rather than sitting above it. */
 export function RecapSkeleton() {
   return (
@@ -123,4 +122,3 @@ export function MessageSkeleton() {
     </div>
   );
 }
-

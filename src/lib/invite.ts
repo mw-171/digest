@@ -1,9 +1,5 @@
-/**
- * Calendar invitations, read out of the `text/calendar` part Gmail attaches.
- * An invite is not a fifth lane — it sits wherever its state puts it — but it
- * needs its own card, carrying the four things a subject line never does: when
- * it starts, how long, where, and whether you have replied.
- */
+// From the `text/calendar` part Gmail attaches. An invite needs its own card:
+// when it starts, how long, where, and whether you have replied.
 export type InviteStatus =
   | "needs-action"
   | "accepted"
@@ -70,11 +66,8 @@ function parseLine(raw: string): Line | null {
   };
 }
 
-/**
- * How far `timeZone` is from UTC at that instant, in milliseconds. Formatting
- * the instant *in* the zone and reading it back as if it were UTC is the only
- * way to ask this without shipping a timezone database.
- */
+// Formatting in the zone and reading it back as UTC is the only way to ask
+// this without shipping a timezone database.
 function zoneOffset(instant: number, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
@@ -102,12 +95,8 @@ function zoneOffset(instant: number, timeZone: string) {
   );
 }
 
-/**
- * Wall-clock time in a named zone → the instant it refers to. The first
- * correction is right everywhere except within an hour of a DST seam, where
- * the offset it used belonged to the wrong side of the jump; re-reading the
- * offset at the corrected instant settles those.
- */
+// The first correction is wrong only within an hour of a DST seam, where the
+// offset belonged to the other side of the jump — so read it again and settle.
 function fromZone(utcGuess: number, timeZone: string) {
   try {
     const once = utcGuess - zoneOffset(utcGuess, timeZone);
@@ -155,11 +144,7 @@ function addressOf(value: string) {
   return value.replace(/^mailto:/i, "").trim().toLowerCase();
 }
 
-/**
- * The VEVENT in a `text/calendar` part, as far as a digest cares about it.
- * `reader` is the connected mailbox, which is how we find the one ATTENDEE
- * line out of forty that says whether *you* have replied.
- */
+// `reader` is how we find the one ATTENDEE line out of forty that is yours.
 export function parseInvite(ics: string, reader: string): Invite | null {
   const lines = unfold(ics)
     .split("\n")

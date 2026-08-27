@@ -15,12 +15,8 @@ import type { DigestMessage, SignalMessage } from "@/lib/gmail";
 export const CATEGORIES = ["work", "meetings", "updates", "social"] as const;
 export type Category = (typeof CATEGORIES)[number];
 
-/**
- * The three the model actually chooses between. Social is whatever Gmail has
- * already filed under promotions or social, and it is decided before any of it
- * is fetched — asking Claude to confirm a label costs a round trip to learn
- * what the label already said.
- */
+// Social is decided by Gmail's label before anything is fetched, so the model
+// never sees it — confirming a label costs a call and adds nothing.
 export const TRIAGE_CATEGORIES = ["work", "meetings", "updates"] as const;
 
 /**
@@ -174,14 +170,8 @@ type CacheShape = { recap: string; items: z.infer<typeof InsightSchema>["items"]
 
 type CacheItem = z.infer<typeof InsightSchema>["items"][number];
 
-/**
- * A day's triage, kept per thread rather than per day.
- *
- * The old file was keyed on the whole mailbox, so one new message threw away
- * the answers for every other message and paid to compute them again. Here a
- * thread carries its own hash and its own items, and only the threads that
- * moved are ever re-read.
- */
+// Per thread, not per day: keyed on the whole mailbox, one new message threw
+// away every other answer and paid to compute them again.
 type DayCache = {
   /** Prompt and model. A bump retires the whole file. */
   version: string;
@@ -199,10 +189,7 @@ const cacheFile = (day: string) => `${day}-threads.json`;
 /** Messages that arrived as one conversation, keyed the way Gmail groups them. */
 const threadOf = (message: DigestMessage) => message.threadId || message.id;
 
-/**
- * A thread's state: which messages it holds and whether each is still unread.
- * Sorted, so the same thread hashes the same however the day is ordered.
- */
+/** Sorted, so a thread hashes the same however the day is ordered. */
 function threadHash(messages: DigestMessage[]) {
   return sha(
     messages
@@ -223,11 +210,7 @@ function groupThreads(messages: DigestMessage[]) {
   return threads;
 }
 
-/**
- * Where a message sits when nobody has read it: Gmail's own tab label.
- * Promotions and Social are advertising by definition, and Forums belongs with
- * the other things that arrive on a schedule and ask nothing.
- */
+/** Gmail's own tab label, for mail nobody has read. */
 export function categoryFromLabel(message: DigestMessage): Category {
   if (message.tab === "promotions" || message.tab === "social") {
     return "social";
@@ -259,12 +242,8 @@ function fallbackBlurb(message: DigestMessage, maxWords = 0) {
 /** Header-only mail gets one line on the card, so its blurb is half as long. */
 const HEADLINE_WORDS = 8;
 
-/**
- * What we show when Claude is unavailable: the subject stands in for the
- * purpose, the snippet for the blurb, and Gmail's labels for the category.
- * An unanswered invitation is the one thing worth promoting without a model
- * to read the mail.
- */
+// Subject for purpose, snippet for blurb, Gmail's labels for category. An
+// unanswered invite is the one thing worth promoting without a model.
 function heuristics(
   signal: SignalMessage[],
   bulk: DigestMessage[],
@@ -331,6 +310,12 @@ function shape(
   cached: CacheShape,
   signal: SignalMessage[],
   bulk: DigestMessage[],
+  /**
+   * What the page can honestly claim. Items missing from `cached` are filled
+   * from heuristics, so a call that could not reach Claude must say so even
+   * though some threads still carry real triage from an earlier one.
+   */
+  source: DayInsights["source"] = "claude",
 ): DayInsights {
   const fallback = heuristics(signal, bulk);
   const byId = { ...fallback.byId };
@@ -355,16 +340,11 @@ function shape(
     };
   }
 
-  return { recap: tidyRecap(cached.recap), byId, source: "claude" };
+  return { recap: tidyRecap(cached.recap), byId, source };
 }
 
-/**
- * Purpose lines, blurbs, categories, urgencies, deadlines and a recap for one
- * day, cached on disk against the messages and their read state, so a reload
- * re-triages only when something moved. Signal is sent with its body and bulk
- * with headers only; falls back to {@link heuristics} when AI is off, unkeyed,
- * or the call fails.
- */
+// Cached on disk against the messages and their read state, so a reload
+// re-triages only what moved. Falls back to heuristics when Claude cannot run.
 export async function fetchInsights(
   day: string,
   signal: SignalMessage[],
@@ -375,8 +355,7 @@ export async function fetchInsights(
     return { recap: "Nothing arrived.", byId: {}, source: "heuristic" };
   }
 
-  // AI switched off: skip the cache too, so what you see is always the
-  // heuristic pass rather than a stale Claude result from an earlier visit.
+  // Skip the cache too, or the switch would show a stale Claude result.
   if (!useAi) return heuristics(signal, bulk);
 
   const all: DigestMessage[] = [...signal, ...bulk];
@@ -399,8 +378,7 @@ export async function fetchInsights(
       (key) => cache.threads[key]?.hash !== hashes.get(key),
     ),
   );
-  // The recap describes the whole day, so it turns over when any thread does —
-  // including one that has left the day entirely.
+  // The recap covers the whole day, so it turns over when any thread does.
   const dayHash = sha(
     [...hashes]
       .sort(([a], [b]) => a.localeCompare(b))
@@ -451,8 +429,7 @@ export async function fetchInsights(
     })),
   ];
 
-  // The rest of the day, in one line each. Not to be re-triaged — it is the
-  // context the recap needs to describe a day it can only partly see.
+  // Context for the recap, not for re-triage.
   const context = settled.map((item) => ({
     from: all.find((message) => message.id === item.id)?.from ?? "",
     purpose: item.purpose,
@@ -488,7 +465,7 @@ export async function fetchInsights(
 
     if (response.stop_reason === "refusal" || !response.parsed_output) {
       console.warn("Claude did not return insights", response.stop_reason);
-      return shape({ recap: cache.recap, items: settled }, signal, bulk);
+      return shape({ recap: cache.recap, items: settled }, signal, bulk, "heuristic");
     }
 
     const returned = new Map(
@@ -519,6 +496,9 @@ export async function fetchInsights(
   } catch (error) {
     if (error instanceof Anthropic.AuthenticationError) {
       console.warn("ANTHROPIC_API_KEY rejected; using heuristics");
+    } else if (/credit balance/i.test((error as Error)?.message ?? "")) {
+      // Arrives as a plain 400, so it needs matching on the message.
+      console.warn("Anthropic credit balance exhausted; using heuristics");
     } else if (error instanceof Anthropic.RateLimitError) {
       console.warn("Rate limited by the Claude API; using heuristics");
     } else {
@@ -526,15 +506,11 @@ export async function fetchInsights(
     }
     // Threads that were already triaged keep their answers; `shape` fills the
     // rest from heuristics rather than throwing the whole day away.
-    return shape({ recap: cache.recap, items: settled }, signal, bulk);
+    return shape({ recap: cache.recap, items: settled }, signal, bulk, "heuristic");
   }
 }
 
-/**
- * The insight already computed for one message, read straight off the day's
- * cache file. Lets the detail view show the purpose line and the category chip
- * without re-triaging the whole day; returns null if the day was never opened.
- */
+/** One message's insight off the day's cache file, or null if never opened. */
 export async function readCachedInsight(
   day: string,
   id: string,

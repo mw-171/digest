@@ -33,14 +33,8 @@ export function CalendarSheet({
         </Button.Root>
       </Modal.Trigger>
 
-      {/*
-        The kit's own close button is absolutely placed at `top-4 right-4`,
-        which on a bare calendar lands on top of the next-month chevron and
-        ten pixels above the month bar it appears to belong to. This sheet
-        supplies its own header instead, so the button is aligned by the row
-        it sits in rather than by an offset that happens to suit a modal with
-        a title in it.
-      */}
+      {/* The kit's close button is placed for a modal with a title; on a bare
+          calendar it lands on the next-month chevron. Own header instead. */}
       <Modal.Content
         showClose={false}
         className="max-w-[368px] overflow-hidden"

@@ -21,19 +21,11 @@ const CATEGORY_LABELS: Record<string, GmailCategory> = {
   CATEGORY_FORUMS: "forums",
 };
 
-/**
- * Bulk mail, decided by Gmail rather than by us. Promotions, social and forums
- * are advertising and mailing lists by definition, and Gmail's own sorting is
- * free, instant and already tuned to this mailbox — so these keep the category
- * their label gave them and no body is ever downloaded for them.
- */
+// Gmail's own sorting is free and already tuned to this mailbox, so these keep
+// their label's category and no body is ever downloaded.
 export const BULK_CATEGORIES: GmailCategory[] = ["promotions", "social", "forums"];
 
-/**
- * A message carries at most one CATEGORY_* label. Mail has none when the
- * account has tabs switched off, which reads as personal — the right default,
- * since that account isn't sorting bulk mail away either.
- */
+// No CATEGORY_* label means tabs are off, which reads as personal.
 export function categoryOf(labels: string[]): GmailCategory {
   for (const label of labels) {
     const category = CATEGORY_LABELS[label];
@@ -77,11 +69,7 @@ export type DayMail = {
   truncated: boolean;
 };
 
-/**
- * How much of a day we read. Signal is capped low because each one costs a
- * full `messages.get` *and* a slice of the model's context; one heavy day
- * should not be able to blow up the digest's latency.
- */
+// Signal is capped low: each costs a full `messages.get` and model context.
 const SIGNAL_MAX = 50;
 const BULK_MAX = 120;
 const VOLUME_MAX = 100;
@@ -176,11 +164,7 @@ const AUTOMATED_SENDER =
 /** Gmail's own tabs for mail that arrives rather than is written to you. */
 const AUTOMATED_LABELS = ["CATEGORY_PROMOTIONS", "CATEGORY_UPDATES"];
 
-/**
- * Whether a machine sent this. Deliberately eager: a false "needs reply" costs
- * the reader a wasted look at every scan, where a missed one costs a single
- * message that is still sitting in the list.
- */
+// Eager on purpose: a false "needs reply" costs a look on every scan.
 function isAutomated(data: gmail_v1.Schema$Message, fromEmail: string) {
   if (AUTOMATED_SENDER.test(fromEmail)) return true;
   // Anything offering an unsubscribe is a broadcast, not a correspondent.
@@ -215,12 +199,8 @@ function headline(data: gmail_v1.Schema$Message, id: string): DigestMessage {
 const byNewest = (a: DigestMessage, b: DigestMessage) =>
   b.receivedAt.localeCompare(a.receivedAt);
 
-/**
- * One day of mail, split at fetch time on Gmail's own labels: bulk keeps only
- * its headers, signal is read in full and is the only half the model sees.
- * `reader` is the connected address, matched against an invite's ATTENDEE
- * lines to find out whether you have replied.
- */
+// Split on Gmail's labels: bulk keeps headers only, signal is read in full.
+// `reader` matches your own ATTENDEE line on an invite.
 export async function fetchDay(
   auth: OAuthClient,
   day: string,
@@ -319,11 +299,8 @@ const CHARSETS: Record<string, BufferEncoding> = {
   "utf-16le": "utf16le",
 };
 
-/**
- * Gmail hands the part back already decoded from its transfer encoding, but
- * still in the sender's charset. Reading a Windows-1252 newsletter as UTF-8 is
- * where stray "\u00e2\u20ac\u2122" sequences in a body come from.
- */
+// Decoded from transfer encoding but still in the sender's charset — reading
+// Windows-1252 as UTF-8 is where stray mojibake comes from.
 function decodePart(part: gmail_v1.Schema$MessagePart) {
   if (!part.body?.data) return "";
   const type = part.headers?.find((h) => h.name?.toLowerCase() === "content-type");
@@ -332,11 +309,8 @@ function decodePart(part: gmail_v1.Schema$MessagePart) {
   return Buffer.from(part.body.data, "base64url").toString(encoding);
 }
 
-/**
- * The first part of type `wanted` that is actual body text. Attachments are
- * skipped even when they are text — an attached .txt is not the message — but
- * an invite is often attached as `invite.ics`, so `attachments` opts back in.
- */
+// Attachments are skipped — an attached .txt is not the message — but an
+// invite often arrives as `invite.ics`, so `attachments` opts back in.
 function findPart(
   part: gmail_v1.Schema$MessagePart,
   wanted: string,
@@ -384,14 +358,7 @@ export async function fetchMessage(
   };
 }
 
-/**
- * The address of the connected mailbox — for account-correct Gmail links, and
- * for matching your own ATTENDEE line on an invitation.
- *
- * Memoised against the refresh token, because the answer cannot change while
- * that token does not, and this would otherwise cost a round trip on the way
- * to rendering every digest and every message.
- */
+// Memoised against the refresh token: the answer cannot change while it does not.
 const accountEmails = new Map<string, string>();
 
 export async function fetchAccountEmail(auth: OAuthClient) {
