@@ -183,16 +183,13 @@ export function replyBy(due: string, day: string) {
 }
 
 /**
- * The clock to the nearest half hour — "10AM", "10:30AM", "11AM" — because a
- * card only has room to say roughly when, and "2:57 PM" spends the width of a
- * whole tag saying it precisely.
+ * The clock on a card: "10:02 AM". The day period is rebuilt rather than taken
+ * as formatted, because a locale may render it "a.m." or "p.m." and the cards
+ * want one shape. A 24-hour locale has none, and keeps "14:57".
  */
-export function roundedTime(at: string) {
+export function clockTime(at: string) {
   const date = new Date(at);
   if (Number.isNaN(date.getTime())) return "";
-
-  // setMinutes(60) rolls the hour, which is what we want at :45 and later.
-  date.setMinutes(Math.round(date.getMinutes() / 30) * 30, 0, 0);
 
   const parts = new Intl.DateTimeFormat(undefined, {
     hour: "numeric",
@@ -200,13 +197,9 @@ export function roundedTime(at: string) {
   }).formatToParts(date);
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
 
-  const hour = get("hour");
-  const minute = get("minute");
-  const period = get("dayPeriod").toUpperCase().replace(/\s/g, "");
-
-  // On a 24-hour clock there is no period to lean on, so the minutes stay.
-  if (!period) return `${hour}:${minute}`;
-  return minute === "00" ? `${hour}${period}` : `${hour}:${minute}${period}`;
+  const clock = `${get("hour")}:${get("minute")}`;
+  const period = get("dayPeriod").replace(/\./g, "").trim().toUpperCase();
+  return period ? `${clock} ${period}` : clock;
 }
 
 /** "Thu 28 Aug" / "Thu 28 Aug, 10:00" — the invite card's line. */

@@ -11,7 +11,7 @@ import {
   formatDeadline,
   formatEventTime,
   replyBy,
-  roundedTime,
+  clockTime,
 } from "@/lib/day";
 import { participantLabel, threadsOf, type Thread } from "@/lib/grouping";
 import { cn } from "@/utils/cn";
@@ -67,7 +67,7 @@ function Corner({
   }
 
   if (!showTime) return null;
-  const time = roundedTime(item.receivedAt);
+  const time = clockTime(item.receivedAt);
   if (!time) return null;
 
   return (
