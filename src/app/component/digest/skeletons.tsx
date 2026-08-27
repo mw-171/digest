@@ -1,4 +1,6 @@
+import { BUSY_TRANSITION, COLD_BLUR, DigestingOverlay } from "./digesting";
 import { Column } from "./layout-frame";
+import { cn } from "@/utils/cn";
 import { RAIL_DAYS } from "@/lib/day";
 
 const PILLS = Array.from({ length: RAIL_DAYS }, (_, i) => i);
@@ -84,7 +86,14 @@ export function DigestSkeleton() {
           </div>
         </Column>
       </div>
-      <DaySkeleton />
+      {/* Same treatment as a cold start inside the app, so the hand-off from
+          this boundary to the live client is invisible. */}
+      <div className="relative flex flex-1 flex-col">
+        <div className={cn("flex flex-1 flex-col", BUSY_TRANSITION, COLD_BLUR)}>
+          <DaySkeleton />
+        </div>
+        <DigestingOverlay />
+      </div>
     </>
   );
 }
