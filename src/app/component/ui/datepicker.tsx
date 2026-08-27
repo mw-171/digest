@@ -1,8 +1,15 @@
 // AlignUI Datepicker v0.0.0
 // Migrated to react-day-picker v9: renamed classNames keys, `navLayout="around"`
-// to keep the arrows inside the caption bar, and `Chevron` in place of
-// `IconLeft`/`IconRight`. In v9 `aria-selected` and the state classes live on
-// the day cell (`td`), so the button styles hang off `group/day`.
+// for the arrows, and `Chevron` in place of `IconLeft`/`IconRight`. In v9
+// `aria-selected` and the state classes live on the day cell (`td`), so the
+// button styles hang off `group/day`.
+//
+// With `navLayout="around"` v9 renders the two arrows as *siblings* of the
+// caption inside the month, not as children of it. They used to be absolutely
+// positioned as though the caption contained them, which left them anchored to
+// whatever ancestor happened to be positioned — in a modal, the modal — and
+// landed them on top of the date grid. The month is a three-column grid now,
+// so the arrows sit in the header row by layout and cannot drift.
 
 "use client";
 
@@ -20,29 +27,39 @@ import { cn } from "@/utils/cn";
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>;
 
+/** An arrow in the caption bar: square, flush with it, and part of its fill. */
 const navButton = compactButtonVariants({
-  variant: "white",
+  variant: "ghost",
   size: "large",
-}).root({ class: "absolute top-1/2 -translate-y-1/2" });
+}).root({
+  class:
+    "size-9 shrink-0 rounded-none bg-bg-weak-50 text-text-sub-600 hover:bg-bg-soft-200 disabled:text-text-disabled-300 aria-disabled:pointer-events-none aria-disabled:text-text-disabled-300",
+});
 
 function Calendar({
   classNames,
   showOutsideDays = true,
+  // Months run four to six week-rows; without this the panel grows and shrinks
+  // by a row as you page through them, which in a modal moves the whole dialog
+  // under the cursor. Six rows always, padded from the neighbouring months.
+  fixedWeeks = true,
   ...rest
 }: CalendarProps) {
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
+      fixedWeeks={fixedWeeks}
       navLayout="around"
       classNames={{
         months: "flex divide-x divide-stroke-soft-200",
-        month: "space-y-2 p-5",
-        month_caption:
-          "flex justify-center items-center relative rounded-lg bg-bg-weak-50 h-9",
+        // Header row is [arrow | month year | arrow]; the grid spans all three.
+        month: "grid grid-cols-[auto_1fr_auto] items-center gap-y-2 p-5",
+        // Rounding lives on the two arrows, so the three cells read as one bar.
+        month_caption: "flex h-9 items-center justify-center bg-bg-weak-50",
         caption_label: "text-label-sm text-text-sub-600 select-none",
-        button_previous: cn(navButton, "left-1.5"),
-        button_next: cn(navButton, "right-1.5"),
-        month_grid: "w-full border-collapse",
+        button_previous: cn(navButton, "rounded-l-lg"),
+        button_next: cn(navButton, "rounded-r-lg"),
+        month_grid: "col-span-3 w-full border-collapse",
         weekdays: "flex gap-2",
         weekday:
           "text-text-soft-400 text-label-sm uppercase size-10 flex items-center justify-center text-center select-none",

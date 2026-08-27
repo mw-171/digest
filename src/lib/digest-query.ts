@@ -1,6 +1,6 @@
 import { keepPreviousData } from "@tanstack/react-query";
 
-import { toDayString } from "@/lib/day";
+import { toDayString, windowFrom } from "@/lib/day";
 import type { DayDigest, WeekDay } from "@/lib/digest";
 
 export type DigestOptions = { useAi: boolean };
@@ -20,12 +20,11 @@ export const dayKey = (day: string, options: DigestOptions) =>
   ["day", day, options.useAi ? "ai" : "plain"] as const;
 
 /**
- * The rail's window is the same for every day you can select, so it is keyed
- * on the window rather than on the selection. Paging between days then reads
- * one cached answer instead of refetching identical counts, and the pills
- * never blink on the way.
+ * Keyed on the window, which is what the counts are actually for. Stepping
+ * between days inside one window reads a single cached answer, so the pills
+ * never blink; the key only changes when the rail itself moves.
  */
-export const weekKey = (today: string) => ["week", today] as const;
+export const weekKey = (anchor: string) => ["week", anchor] as const;
 
 export class DigestRequestError extends Error {
   status: number;
@@ -79,6 +78,11 @@ export function dayQuery(day: string, today: string, options: DigestOptions) {
     queryKey: dayKey(day, options),
     queryFn: () => getJson<DayDigest>(`/api/digest?${params}`),
     staleTime: day === today ? 0 : CACHE_MAX_AGE,
+    // Jumping to an untriaged day used to tear the page down to a skeleton and
+    // build it back, which from the date picker reads as the screen falling
+    // over. The day you were reading stays up, dimmed, until the new one is
+    // ready — only the very first load has nothing to hold.
+    placeholderData: keepPreviousData,
   };
 }
 
@@ -91,14 +95,15 @@ export function dayQuery(day: string, today: string, options: DigestOptions) {
  * is itself reloading. The bars barely move between neighbouring days, so
  * holding the old ones is both calmer and truer.
  */
-export function weekQuery(today: string) {
-  const params = new URLSearchParams({ date: today });
+export function weekQuery(anchor: string, today: string) {
+  const params = new URLSearchParams({ start: anchor });
 
   return {
-    queryKey: weekKey(today),
+    queryKey: weekKey(anchor),
     queryFn: () => getJson<WeekDay[]>(`/api/week?${params}`),
-    // The window ends today, so it can always gain mail.
-    staleTime: 0,
+    // A window reaching today can still gain mail; one entirely in the past
+    // cannot.
+    staleTime: windowFrom(anchor).includes(today) ? 0 : CACHE_MAX_AGE,
     placeholderData: keepPreviousData,
   };
 }

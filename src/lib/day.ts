@@ -35,26 +35,89 @@ export function weekOf(day: string) {
 /** Days in the rail: today, and the six before it. */
 export const RAIL_DAYS = 7;
 
-/**
- * The days the rail shows.
- *
- * A fixed window ending today, not one centred on whatever day is selected.
- * Centring meant the rail slid under you every time you picked something near
- * its edge, so the same date sat in a different place from one tap to the
- * next and there was no way to tell "three days ago" by position. Anything
- * older than the window is the date picker's job.
- *
- * `day` is not part of the window any more — only of which pill reads as
- * selected — but it stays in the signature because callers pass it and the
- * result is still per-request.
- */
-export function weekWindow(_day: string, today = toDayString()) {
-  const end = new Date(`${today}T00:00:00`);
+const shift = (day: string, by: number) => {
+  const d = new Date(`${day}T00:00:00`);
+  d.setDate(d.getDate() + by);
+  return toDayString(d);
+};
 
-  return Array.from({ length: RAIL_DAYS }, (_, index) => {
-    const d = new Date(end);
-    d.setDate(end.getDate() - (RAIL_DAYS - 1 - index));
-    return toDayString(d);
+/** `length` consecutive days, the last of which is `end`. */
+const endingOn = (end: string, length: number) =>
+  Array.from({ length }, (_, index) => shift(end, index - (length - 1)));
+
+/** The seven days starting at `anchor`. The rail is always exactly this. */
+export function windowFrom(anchor: string) {
+  return Array.from({ length: RAIL_DAYS }, (_, index) => shift(anchor, index));
+}
+
+/** The window that ends today — where the rail sits until you leave it. */
+export function anchoredWindow(today = toDayString()) {
+  return endingOn(today, RAIL_DAYS);
+}
+
+/**
+ * Where the rail should start in order to show `day`.
+ *
+ * Two rules, and which one applies depends on how you got here:
+ *
+ * - If `day` is within the window ending today, that is the window. Positions
+ *   then mean something — the same date is always in the same place.
+ * - Otherwise the rail centres on `day`, three either side, pulled back if
+ *   that would run past today.
+ *
+ * Centring is for arriving somewhere, not for moving around once you are
+ * there. Only the date picker calls for it; stepping between pills keeps
+ * whatever window it is already in, so the rail stays put and the selection
+ * slides along it instead of the whole strip jumping under your finger.
+ */
+export function recentreAnchor(day: string, today = toDayString()) {
+  const anchored = anchoredWindow(today);
+  if (anchored.includes(day)) return anchored[0];
+
+  const half = Math.floor(RAIL_DAYS / 2);
+  const end = shift(day, half);
+  return endingOn(end > today ? today : end, RAIL_DAYS)[0];
+}
+
+
+/** One pill in the rail. Everything here is calendar, not mailbox. */
+export type RailDay = {
+  day: string;
+  weekday: string;
+  date: string;
+  selected: boolean;
+  isToday: boolean;
+};
+
+/**
+ * The rail's pills, labels and all.
+ *
+ * Which seven days these are, what they are called and which one is today are
+ * questions a calendar answers on its own — no mailbox involved — so the rail
+ * is built here and rendered immediately. Only the volume pips wait on the
+ * network, and they are one 3px bar inside a pill that is already the right
+ * size, so nothing moves when they land.
+ *
+ * Computed wherever it is called, which for the live digest is the browser:
+ * the weekday names then come out in the reader's locale rather than the
+ * server's. The window is passed in rather than derived, because which seven
+ * days are on screen is a thing the page remembers, not a function of the
+ * selection.
+ */
+export function railDays(
+  window: string[],
+  day: string,
+  today = toDayString(),
+): RailDay[] {
+  return window.map((d) => {
+    const date = new Date(`${d}T00:00:00`);
+    return {
+      day: d,
+      weekday: date.toLocaleDateString(undefined, { weekday: "narrow" }),
+      date: String(date.getDate()),
+      selected: d === day,
+      isToday: d === today,
+    };
   });
 }
 

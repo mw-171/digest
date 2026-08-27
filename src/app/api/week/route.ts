@@ -6,16 +6,18 @@ import { authorizedClient, isAuthError } from "@/lib/google";
 import { json } from "@/lib/http";
 
 /**
- * Volume counts for the rail's window, which ends today whatever `date` is.
+ * Volume counts for the seven days starting at `start`.
  * Cheap: ids only, and
  * recomputed on every request for the same reason the digest is.
  */
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const date = request.nextUrl.searchParams.get("date") ?? toDayString();
-  if (!isValidDay(date) || date > toDayString()) {
-    return json({ error: "Bad date." }, 400);
+  // The window's first day. The rail slides independently of the selection,
+  // so the client says which seven days it is showing rather than implying it.
+  const start = request.nextUrl.searchParams.get("start");
+  if (!start || !isValidDay(start) || start > toDayString()) {
+    return json({ error: "Bad start date." }, 400);
   }
 
   if (!(await authorizedClient())) {
@@ -23,7 +25,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    return json(await getWeek(date));
+    return json(await getWeek(start));
   } catch (error) {
     console.error("Could not load the week", error);
     return json(

@@ -1,6 +1,6 @@
 import { cache } from "react";
 
-import { toDayString, weekWindow } from "@/lib/day";
+import { toDayString, windowFrom } from "@/lib/day";
 import {
   CATEGORIES,
   fetchInsights,
@@ -68,14 +68,20 @@ async function client() {
 }
 
 /**
- * The week rail. Separate from {@link getDay} — and much faster, since it only
- * counts ids — so the rail can render while the day is still being triaged.
+ * Volumes for the seven days starting at `start`.
+ *
+ * Separate from {@link getDay} — and much faster, since it only counts ids —
+ * so the rail can render while the day is still being triaged. Which seven
+ * days those are is the caller's decision: the rail is a thing the page moves
+ * around, not something derivable from the day being read.
+ *
+ * `selected` is left false here; only the page knows what is selected.
  *
  * `cache` dedupes within a render, so several components may call these freely.
  */
-export const getWeek = cache(async (day: string): Promise<WeekDay[]> => {
+export const getWeek = cache(async (start: string): Promise<WeekDay[]> => {
   const today = toDayString();
-  const days = weekWindow(day, today);
+  const days = windowFrom(start);
   const volumes = await fetchVolumes(await client(), days);
   const busiest = Math.max(...volumes.map((v) => v.count), 1);
 
@@ -89,7 +95,7 @@ export const getWeek = cache(async (day: string): Promise<WeekDay[]> => {
       date: String(date.getDate()),
       count,
       weight: count / busiest,
-      selected: d === day,
+      selected: false,
       isToday: d === today,
     };
   });

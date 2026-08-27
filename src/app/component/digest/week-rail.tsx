@@ -3,7 +3,13 @@
 import Link from "next/link";
 
 import { cn } from "@/utils/cn";
-import type { WeekDay } from "@/lib/digest";
+import type { RailDay } from "@/lib/day";
+
+/** Gap between pills, in px. The indicator has to travel it too. */
+const GAP = 3;
+
+/** A pill, with its volume if the counts have arrived yet. */
+export type RailEntry = RailDay & { count?: number; weight?: number };
 
 /**
  * The week as a rail of pills.
@@ -13,32 +19,29 @@ import type { WeekDay } from "@/lib/digest";
  * Here the day is the pill and the volume is the pip underneath it: present or
  * absent, heavy or light, and nothing taller than 3px.
  *
- * The window is fixed — it always ends today — so a pill's position means
- * something: the same date is always in the same place, and the selection can
- * travel between them instead of the rail sliding underneath.
+ * The window is fixed — it ends today unless you reach past it — so a pill's
+ * position means something, and the selection can travel between them instead
+ * of the rail sliding underneath.
  */
 export function WeekRail({
   week,
   onSelect,
 }: {
-  week: WeekDay[];
+  week: RailEntry[];
   /** Supplied by the live digest so a tap reads the query cache instead of
    *  navigating; without it the pills fall back to plain links. */
   onSelect?: (day: string) => void;
 }) {
   const Element = (onSelect ? "button" : Link) as React.ElementType;
-
-  // -1 when the chosen day predates the window, which the date picker allows.
-  // The rail then shows no selection rather than lying about one.
   const selected = week.findIndex((day) => day.selected);
+  const n = week.length;
 
   return (
-    <div className="relative flex rounded-2xl bg-bg-weak-50 p-1">
+    <div className="relative flex gap-[3px] rounded-2xl bg-bg-weak-50 p-1">
       {/*
         One pill-shaped block that slides, rather than a background switched on
-        and off per pill. Because the pills are equal width and butt together,
-        the travel is exactly one width per step. Transform only, so it never
-        reflows the row it sits under.
+        and off per pill. Its width is a pill's, so a step is one width plus the
+        gap it crosses. Transform only, so it never reflows the row beneath.
       */}
       {selected >= 0 && (
         <span
@@ -48,8 +51,8 @@ export function WeekRail({
             "transition-transform duration-300 ease-out motion-reduce:transition-none",
           )}
           style={{
-            width: `calc((100% - 0.5rem) / ${week.length})`,
-            transform: `translateX(${selected * 100}%)`,
+            width: `calc((100% - 0.5rem - ${(n - 1) * GAP}px) / ${n})`,
+            transform: `translateX(calc(${selected} * (100% + ${GAP}px)))`,
           }}
         />
       )}
@@ -61,15 +64,21 @@ export function WeekRail({
             ? { onClick: () => onSelect(day.day), type: "button" as const }
             : { href: `/?date=${day.day}` })}
           aria-current={day.selected ? "date" : undefined}
-          aria-label={`${day.count} on ${day.day}`}
+          aria-label={
+            day.count === undefined ? day.day : `${day.count} on ${day.day}`
+          }
           className={cn(
-            "relative flex flex-1 basis-0 flex-col items-center gap-1 rounded-xl px-0 py-[7px] outline-none",
+            "relative flex flex-1 flex-col items-center gap-1 rounded-xl px-0 py-[7px] outline-none",
             "focus-visible:ring-2 focus-visible:ring-primary-alpha-24",
             !day.selected && "hover:bg-bg-white-0/70",
             "md:py-2.5",
           )}
         >
           <span
+            // Locale-formatted, so the server's rendering of it is a guess at
+            // the reader's. The browser's answer replaces it on the next
+            // render rather than being flagged as a mismatch.
+            suppressHydrationWarning
             className={cn(
               "text-[9.5px] font-semibold uppercase tracking-[0.06em] transition-colors duration-300 ease-out md:text-label-xs",
               day.selected ? "text-text-white-0/60" : "text-text-soft-400",
@@ -78,6 +87,7 @@ export function WeekRail({
             {day.weekday}
           </span>
           <span
+            suppressHydrationWarning
             className={cn(
               "text-label-sm font-semibold tracking-[-0.02em] transition-colors duration-300 ease-out md:text-label-md",
               day.selected
@@ -91,16 +101,24 @@ export function WeekRail({
           </span>
           {/* Volume, in the only two dimensions a 3px bar has: is there any,
               and is there a lot. A busy day reads at full strength, a quiet
-              one at half, an empty one not at all. */}
+              one at half, an empty one not at all. Before the counts land it
+              sits at a third — the pill is already its final size, so this is
+              the only thing that changes when they do. */}
           <span
             className={cn(
-              "h-[3px] w-3 rounded-sm transition-colors duration-300 ease-out md:w-4",
+              "h-[3px] w-3.5 rounded-sm transition-colors duration-300 ease-out md:w-5",
               day.selected
                 ? "bg-text-white-0/50"
-                : day.count
-                  ? "bg-bg-sub-300"
-                  : "bg-transparent",
-              day.count && day.weight <= 0.6 && "opacity-55",
+                : day.count === undefined
+                  ? "bg-bg-sub-300/30"
+                  : day.count
+                    ? "bg-bg-sub-300"
+                    : "bg-transparent",
+              day.count !== undefined &&
+                day.count > 0 &&
+                day.weight !== undefined &&
+                day.weight <= 0.6 &&
+                "opacity-55",
             )}
           />
         </Element>
