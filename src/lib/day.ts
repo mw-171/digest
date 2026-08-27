@@ -165,15 +165,13 @@ export function formatDeadline(
 }
 
 /**
- * The reply-by tag: "Reply today", "Reply tomorrow", or "Reply by Aug 29".
- * Counted from the day on screen, like every other date on a card.
+ * The reply-by tag: always "Reply by Aug 29", never "Reply tomorrow". One
+ * shape means the date is in the same place on every card, and a date is
+ * unambiguous where a relative word has to be resolved against the day on
+ * screen rather than against today.
  */
 export function replyBy(due: string, day: string) {
   if (!isValidDay(due)) return null;
-
-  const offset = daysBetween(day, due);
-  if (offset === 0) return "Reply today";
-  if (offset === 1) return "Reply tomorrow";
 
   const stamp = new Date(`${due}T00:00:00`).toLocaleDateString(undefined, {
     month: "short",
@@ -185,7 +183,7 @@ export function replyBy(due: string, day: string) {
 }
 
 /**
- * The clock to the nearest half hour — "10am", "10:30am", "11am" — because a
+ * The clock to the nearest half hour — "10AM", "10:30AM", "11AM" — because a
  * card only has room to say roughly when, and "2:57 PM" spends the width of a
  * whole tag saying it precisely.
  */
@@ -204,7 +202,7 @@ export function roundedTime(at: string) {
 
   const hour = get("hour");
   const minute = get("minute");
-  const period = get("dayPeriod").toLowerCase().replace(/\s/g, "");
+  const period = get("dayPeriod").toUpperCase().replace(/\s/g, "");
 
   // On a 24-hour clock there is no period to lean on, so the minutes stay.
   if (!period) return `${hour}:${minute}`;

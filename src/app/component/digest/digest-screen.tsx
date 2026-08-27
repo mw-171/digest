@@ -247,7 +247,11 @@ export function DayView({
               />
             </>
           )}
-          <SocialCards items={social} day={digest.day} />
+          <SocialCards
+            items={social}
+            day={digest.day}
+            showTime={digest.day === today}
+          />
         </>
       )}
 

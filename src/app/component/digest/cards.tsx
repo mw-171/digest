@@ -402,15 +402,18 @@ export function CardList({
 export function SocialCards({
   items,
   day,
+  showTime = false,
 }: {
   items: DigestItem[];
   day: string;
+  /** Today's mail carries its arrival time, in this lane like any other. */
+  showTime?: boolean;
 }) {
   if (items.length === 0) return null;
 
   return (
     <section>
-      <CardList items={items} day={day} compact />
+      <CardList items={items} day={day} compact showTime={showTime} />
     </section>
   );
 }

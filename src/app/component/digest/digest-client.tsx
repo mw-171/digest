@@ -5,12 +5,7 @@ import * as React from "react";
 
 import { Toggle } from "./toggle";
 import { DayView, Footer, HeaderFrame, Shell } from "./digest-screen";
-import {
-  BUSY_BLUR,
-  BUSY_TRANSITION,
-  COLD_BLUR,
-  DigestingOverlay,
-} from "./digesting";
+import { DigestingOverlay, Scrim } from "./digesting";
 import { DaySkeleton } from "./skeletons";
 import { WeekRail } from "./week-rail";
 import type { SortMode } from "./tiles";
@@ -154,6 +149,7 @@ export function DigestClient({
   // rather than being unmounted mid-transition. Removing an element is not a
   // transition; keeping it and animating its opacity to zero is.
   const coldLayer = useLingering(cold, FADE_MS);
+  const scrim = useLingering(stale, FADE_MS);
   const overlay = useLingering(busy, FADE_MS);
 
   const select = React.useCallback(
@@ -232,8 +228,7 @@ export function DigestClient({
           <div
             className={cn(
               "flex flex-1 flex-col",
-              BUSY_TRANSITION,
-              stale && `${BUSY_BLUR} pointer-events-none select-none`,
+              stale && "pointer-events-none select-none",
             )}
           >
             {dayResult.data ? (
@@ -250,6 +245,10 @@ export function DigestClient({
             )}
           </div>
 
+          {/* Switching days: the day you were reading stays legible under a
+              wash of the page's own colour. */}
+          {scrim && <Scrim visible={stale} />}
+
           {/*
             The cold-start skeleton, over the content rather than instead of
             it. Opaque while it waits, then dissolved — so the real digest is
@@ -261,7 +260,7 @@ export function DigestClient({
               className={cn(
                 "absolute inset-0 overflow-hidden bg-bg-white-0",
                 "transition-opacity duration-500 ease-out",
-                cold ? COLD_BLUR : "pointer-events-none opacity-0",
+                cold ? "opacity-100" : "pointer-events-none opacity-0",
               )}
             >
               <DaySkeleton />
