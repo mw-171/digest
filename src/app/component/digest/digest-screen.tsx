@@ -6,7 +6,13 @@ import { CardList, SocialCards } from "./cards";
 import { CATEGORY_BLURB } from "./categories";
 import { CalendarSheet } from "./calendar-sheet";
 import { Column, Footer, Shell } from "./layout-frame";
-import { FocusRule, Tiles, VolumeBar, type SortMode } from "./tiles";
+import {
+  FocusRule,
+  QuietRule,
+  Tiles,
+  VolumeBar,
+  type SortMode,
+} from "./tiles";
 import { WeekRail } from "./week-rail";
 import * as Button from "@/app/component/ui/button";
 import { formatDayTitle, formatPillDate, toDayString } from "@/lib/day";
@@ -189,17 +195,33 @@ export function DayView({
     ? (digest.categories.find((group) => group.key === focus)?.title ?? "Everything")
     : "Everything";
 
+  // Grouping is a property of the priority order — in Recent the list is
+  // deliberately chronological, and cutting it in two would contradict that.
+  // A filtered lane is already one subset and does not want a second.
+  const wants = (item: DigestItem) => item.needsReply || item.urgency === "high";
+  const grouped = sort === "priority" && focus === null;
+  const topOfMind = grouped ? rest.filter(wants) : [];
+  const others = grouped ? rest.filter((item) => !wants(item)) : rest;
+  // A quiet day is one clean list, not an empty section and a label for the
+  // remainder of nothing.
+  const split = topOfMind.length > 0;
+
   return (
     <Column className="flex-1 pb-4">
       <RecapLine text={digest.recap} />
-      <VolumeBar categories={digest.categories} />
+      <VolumeBar
+        categories={digest.categories}
+        focus={focus}
+        onFocus={onFocus}
+      />
 
       <div className="pt-5">
         <Tiles categories={digest.categories} focus={focus} onFocus={onFocus} />
       </div>
 
       <FocusRule
-        label={label}
+        label={split ? "Top of mind" : label}
+        count={split ? topOfMind.length : undefined}
         filtered={focus !== null}
         onClear={() => onFocus(null)}
         sort={sort}
@@ -211,10 +233,20 @@ export function DayView({
       ) : (
         <>
           <CardList
-            items={rest}
+            items={split ? topOfMind : rest}
             day={digest.day}
             showTime={digest.day === today}
           />
+          {split && (
+            <>
+              <QuietRule label="Everything else" />
+              <CardList
+                items={others}
+                day={digest.day}
+                showTime={digest.day === today}
+              />
+            </>
+          )}
           <SocialCards items={social} day={digest.day} />
         </>
       )}

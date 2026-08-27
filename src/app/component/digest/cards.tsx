@@ -1,12 +1,18 @@
 "use client";
 
-import { RiErrorWarningLine, RiReplyLine } from "@remixicon/react";
+import { RiReplyLine } from "@remixicon/react";
 import Link from "next/link";
 import * as React from "react";
 
 import { SenderAvatar } from "./avatar-initials";
 import { CATEGORY_STYLE } from "./categories";
-import { eventDateBlock, formatDeadline, formatEventTime } from "@/lib/day";
+import {
+  eventDateBlock,
+  formatDeadline,
+  formatEventTime,
+  replyBy,
+  roundedTime,
+} from "@/lib/day";
 import { participantLabel, threadsOf, type Thread } from "@/lib/grouping";
 import { cn } from "@/utils/cn";
 import type { DigestItem } from "@/lib/digest";
@@ -29,76 +35,74 @@ const CARD = cn(
   "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary-alpha-24",
 );
 
-/** The date chip. Nothing at all when the message named no date. */
-function Deadline({ item, day }: { item: DigestItem; day: string }) {
-  const deadline = formatDeadline(item.due, day, item.dueKind);
-  if (!deadline) return null;
+/**
+ * The one thing the corner is allowed to say, in priority order: when a reply
+ * is owed, that a reply is owed, when it arrived, nothing.
+ *
+ * One value, never two. An event's date is deliberately not among them — that
+ * is when the thing happens, not a reason to act, and the title already carries
+ * it.
+ */
+function Corner({
+  item,
+  day,
+  showTime,
+}: {
+  item: DigestItem;
+  day: string;
+  showTime: boolean;
+}) {
+  if (item.needsReply) {
+    // Only a deadline earns a date here; `dueKind` tells the two apart.
+    const label =
+      (item.dueKind === "deadline" ? replyBy(item.due, day) : null) ??
+      "Needs reply";
 
-  return (
-    <span
-      className={cn(
-        // Neutral on purpose: the accent belongs to the flags, which say what
-        // is wanted. This only says when, and competed with them for it.
-        "shrink-0 whitespace-nowrap text-label-xs font-medium",
-        deadline.late ? "text-text-soft-400" : "text-text-sub-600",
-      )}
-    >
-      {deadline.label}
-    </span>
-  );
-}
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-bg-weak-50 px-2 py-0.5 text-label-xs font-medium text-text-sub-600">
+        <RiReplyLine aria-hidden className="size-3 shrink-0" />
+        {label}
+      </span>
+    );
+  }
 
-/** When it arrived. The weakest fact on the card, and styled like it. */
-function Time({ at }: { at: string }) {
+  if (!showTime) return null;
+  const time = roundedTime(item.receivedAt);
+  if (!time) return null;
+
   return (
     <time
-      dateTime={at}
-      className="shrink-0 text-label-xs font-medium text-text-soft-400"
+      dateTime={item.receivedAt}
+      className="shrink-0 whitespace-nowrap text-label-xs font-medium text-text-soft-400"
     >
-      {new Date(at).toLocaleTimeString(undefined, {
-        hour: "numeric",
-        minute: "2-digit",
-      })}
+      {time}
     </time>
   );
 }
 
 /**
- * What this card wants from you, if anything. A 6px dot said only "something",
- * which is no use for scanning: this names the thing, in the accent already
- * used for anything that wants a reader.
+ * Urgency, on the face rather than in the corner: it is independent of whether
+ * a reply is owed, so it gets its own channel and the two can coexist. The
+ * border is the card's own colour, which is what makes it read as sitting on
+ * top of the avatar rather than punched out of it.
  */
-function ActionFlag({ item }: { item: DigestItem }) {
-  // A reply arrow is the shape every mail client uses for the action; a warning
-  // circle reads as "attend to this" where a flag reads as "flag it for later".
-  const kind = item.needsReply
-    ? {
-        icon: RiReplyLine,
-        hint: "Someone is waiting on your reply",
-        tone: "bg-primary-alpha-10 text-primary-dark",
-      }
-    : // "high" is the model's word for needs-you-today-or-tomorrow.
-      item.urgency === "high"
-      ? {
-          icon: RiErrorWarningLine,
-          hint: "Needs you today or tomorrow",
-          tone: "bg-orange-alpha-10 text-orange-700",
-        }
-      : null;
-  if (!kind) return null;
-
-  const Icon = kind.icon;
-
+function Face({ item }: { item: DigestItem }) {
   return (
-    <span
-      title={kind.hint}
-      aria-label={kind.hint}
-      className={cn(
-        "inline-flex size-5 shrink-0 items-center justify-center rounded-full",
-        kind.tone,
+    <span className="relative shrink-0">
+      <SenderAvatar
+        name={item.from}
+        email={item.fromEmail}
+        category={item.category}
+      />
+      {item.urgency === "high" && (
+        <span
+          title="Needs you today or tomorrow"
+          aria-label="Urgent"
+          className="absolute -bottom-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full border-2 border-bg-white-0 bg-error-base text-[9px] font-bold leading-none text-static-white"
+        >
+          !
+        </span>
       )}
-    >
-      <Icon aria-hidden className="size-3" />
     </span>
   );
 }
@@ -111,7 +115,7 @@ function ActionFlag({ item }: { item: DigestItem }) {
 function CardBody({
   sender,
   blurb,
-  at,
+  count,
   trailing,
   compact = false,
   read = false,
@@ -119,8 +123,9 @@ function CardBody({
 }: {
   sender: string;
   blurb: string;
-  at?: string;
-  /** Sits on the top line, right of the time: a deadline or a thread count. */
+  /** Conversation length, shown beside the sender rather than in the corner. */
+  count?: number;
+  /** The corner slot. Exactly one value, or nothing. */
   trailing?: React.ReactNode;
   /** One line at every width, for lanes read by scanning rather than reading. */
   compact?: boolean;
@@ -132,20 +137,24 @@ function CardBody({
   return (
     <span className="min-w-0 flex-1 overflow-hidden">
       <span className="flex items-center justify-between gap-2">
-        <span
-          className={cn(
-            "truncate text-label-sm md:text-label-md",
-            read
-              ? "font-medium text-text-sub-600"
-              : "font-semibold text-text-strong-950",
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span
+            className={cn(
+              "truncate text-label-sm md:text-label-md",
+              read
+                ? "font-medium text-text-sub-600"
+                : "font-semibold text-text-strong-950",
+            )}
+          >
+            {sender}
+          </span>
+          {count !== undefined && (
+            <span className="shrink-0 text-label-xs font-medium tabular-nums text-text-soft-400">
+              · {count}
+            </span>
           )}
-        >
-          {sender}
         </span>
-        <span className="flex shrink-0 items-center gap-2">
-          {trailing}
-          {at && <Time at={at} />}
-        </span>
+        {trailing}
       </span>
 
       {children ?? (
@@ -179,23 +188,13 @@ function MessageCard({
       href={`/message/${item.id}?date=${day}`}
       className={cn(CARD, "outline-none")}
     >
-      <SenderAvatar
-        name={item.from}
-        email={item.fromEmail}
-        category={item.category}
-      />
+      <Face item={item} />
       <CardBody
         sender={item.from}
         blurb={item.blurb || item.purpose}
-        at={showTime ? item.receivedAt : undefined}
         compact={compact}
         read={!item.unread}
-        trailing={
-          <>
-            <ActionFlag item={item} />
-            <Deadline item={item} day={day} />
-          </>
-        }
+        trailing={<Corner item={item} day={day} showTime={showTime} />}
       />
     </Link>
   );
@@ -224,25 +223,15 @@ function ThreadCard({
       href={`/message/${latest.id}?date=${day}`}
       className={cn(CARD, "outline-none")}
     >
-      <SenderAvatar
-        name={latest.from}
-        email={latest.fromEmail}
-        category={latest.category}
-      />
+      <Face item={latest} />
       <CardBody
         sender={participantLabel(thread.participants)}
         blurb={latest.blurb || thread.subject}
-        at={showTime ? latest.receivedAt : undefined}
+        // Two is just a reply; a conversation starts being one at three.
+        count={thread.count >= 3 ? thread.count : undefined}
         compact={compact}
         read={!latest.unread}
-        trailing={
-          <>
-            <ActionFlag item={latest} />
-            <span className="rounded-full bg-bg-weak-50 px-1.5 py-0.5 text-label-xs font-semibold tabular-nums text-text-sub-600">
-              {thread.count}
-            </span>
-          </>
-        }
+        trailing={<Corner item={latest} day={day} showTime={showTime} />}
       />
     </Link>
   );

@@ -164,6 +164,53 @@ export function formatDeadline(
   };
 }
 
+/**
+ * The reply-by tag: "Reply today", "Reply tomorrow", or "Reply by Aug 29".
+ * Counted from the day on screen, like every other date on a card.
+ */
+export function replyBy(due: string, day: string) {
+  if (!isValidDay(due)) return null;
+
+  const offset = daysBetween(day, due);
+  if (offset === 0) return "Reply today";
+  if (offset === 1) return "Reply tomorrow";
+
+  const stamp = new Date(`${due}T00:00:00`).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    // A year only earns its place when it isn't the one on screen.
+    ...(due.slice(0, 4) === day.slice(0, 4) ? {} : { year: "numeric" }),
+  });
+  return `Reply by ${stamp}`;
+}
+
+/**
+ * The clock to the nearest half hour — "10am", "10:30am", "11am" — because a
+ * card only has room to say roughly when, and "2:57 PM" spends the width of a
+ * whole tag saying it precisely.
+ */
+export function roundedTime(at: string) {
+  const date = new Date(at);
+  if (Number.isNaN(date.getTime())) return "";
+
+  // setMinutes(60) rolls the hour, which is what we want at :45 and later.
+  date.setMinutes(Math.round(date.getMinutes() / 30) * 30, 0, 0);
+
+  const parts = new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+
+  const hour = get("hour");
+  const minute = get("minute");
+  const period = get("dayPeriod").toLowerCase().replace(/\s/g, "");
+
+  // On a 24-hour clock there is no period to lean on, so the minutes stay.
+  if (!period) return `${hour}:${minute}`;
+  return minute === "00" ? `${hour}${period}` : `${hour}:${minute}${period}`;
+}
+
 /** "Thu 28 Aug" / "Thu 28 Aug, 10:00" — the invite card's line. */
 export function formatEventTime(start: string, allDay: boolean) {
   const date = new Date(allDay ? `${start}T00:00:00` : start);

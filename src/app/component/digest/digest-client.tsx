@@ -21,6 +21,7 @@ import { railDays, recentreAnchor, toDayString, windowFrom } from "@/lib/day";
 import type { Category } from "@/lib/digest-ai";
 import {
   dayQuery,
+  weekKey,
   previousDay,
   weekQuery,
   type DigestOptions,

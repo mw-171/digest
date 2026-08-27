@@ -80,7 +80,9 @@ function Calendar({
           // hover
           "hover:bg-bg-weak-50 hover:text-text-strong-950",
           // selected
-          "group-aria-selected/day:bg-primary-base group-aria-selected/day:text-static-white",
+          // Black, not the accent: the accent means "wants you" everywhere else
+          // in this app, and a chosen date is neither urgent nor waiting.
+          "group-aria-selected/day:bg-bg-strong-950 group-aria-selected/day:text-static-white",
           // middle of a range keeps the cell's tint instead
           "group-[.day-range-middle]/day:!bg-transparent group-[.day-range-middle]/day:!text-primary-base",
           // outside / disabled

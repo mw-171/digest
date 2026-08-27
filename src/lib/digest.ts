@@ -147,6 +147,9 @@ export const getDay = cache(
         // about a scheduled thing, and its date is when that thing happens.
         category: message.invite ? "meetings" : insight.category,
         dueKind: message.invite ? ("event" as const) : insight.dueKind,
+        // The model reads "your invoice is ready" as a request. Nothing a
+        // no-reply address sends is waiting on an answer.
+        needsReply: insight.needsReply && !message.automated,
       };
     };
 

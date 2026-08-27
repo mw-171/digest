@@ -30,19 +30,49 @@ const SORT_HINT: Record<SortMode, string> = {
  * answers "what kind of day was this" before a row is read, and is the legend
  * for every colour further down.
  */
-export function VolumeBar({ categories }: { categories: CategoryGroup[] }) {
+export function VolumeBar({
+  categories,
+  focus,
+  onFocus,
+}: {
+  categories: CategoryGroup[];
+  focus: Category | null;
+  onFocus: (next: Category | null) => void;
+}) {
   const shown = categories.filter((group) => group.count > 0);
   if (shown.length === 0) return null;
 
   return (
-    <div aria-hidden className="flex gap-[3px]">
-      {shown.map((group) => (
-        <span
-          key={group.key}
-          style={{ flexGrow: group.count }}
-          className={cn("h-2 rounded", CATEGORY_STYLE[group.key].swatch)}
-        />
-      ))}
+    <div className="flex gap-[3px]">
+      {shown.map((group) => {
+        const active = focus === group.key;
+
+        return (
+          <button
+            key={group.key}
+            type="button"
+            style={{ flexGrow: group.count }}
+            onClick={() => onFocus(active ? null : group.key)}
+            aria-pressed={active}
+            aria-label={`${group.title}, ${group.count}`}
+            // The bar is 8px of colour, which is far under a thumb. The padding
+            // is pulled back out with a negative margin, so the target is 24px
+            // tall while the segment still reads as a hairline.
+            className="group -my-2 shrink-0 py-2 outline-none"
+          >
+            <span
+              className={cn(
+                "block h-2 rounded transition-opacity duration-200 ease-out",
+                CATEGORY_STYLE[group.key].swatch,
+                // Dimming the others is what says a filter is on; the segment
+                // is too thin to carry a ring or a border.
+                focus !== null && !active && "opacity-30",
+                "group-hover:opacity-100 group-focus-visible:ring-2 group-focus-visible:ring-primary-alpha-24",
+              )}
+            />
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -174,12 +204,15 @@ function SortOption({
  */
 export function FocusRule({
   label,
+  count,
   filtered,
   onClear,
   sort,
   onSort,
 }: {
   label: string;
+  /** Shown beside the label, for a heading that names a subset. */
+  count?: number;
   filtered: boolean;
   onClear: () => void;
   sort: SortMode;
@@ -190,6 +223,11 @@ export function FocusRule({
       <span className="text-label-xs font-semibold uppercase tracking-[0.04em] text-text-strong-950">
         {label}
       </span>
+      {count !== undefined && (
+        <span className="text-label-xs font-semibold tabular-nums text-text-soft-400">
+          {count}
+        </span>
+      )}
       <span className="h-px flex-1 bg-stroke-soft-200" />
 
       {filtered && (
@@ -229,3 +267,21 @@ export function FocusRule({
     </div>
   );
 }
+
+/**
+ * The second divider, for what is left once the things that want you are out of
+ * the way. Deliberately quieter than {@link FocusRule}: lowercase, unweighted
+ * and soft, so the eye reads it as the end of the important part rather than as
+ * the start of another section.
+ */
+export function QuietRule({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 pb-2 pt-6">
+      <span className="text-label-xs font-medium text-text-soft-400">
+        {label}
+      </span>
+      <span className="h-px flex-1 bg-stroke-soft-200" />
+    </div>
+  );
+}
+

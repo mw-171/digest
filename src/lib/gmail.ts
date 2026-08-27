@@ -55,6 +55,8 @@ export type DigestMessage = {
   snippet: string;
   receivedAt: string; // ISO
   unread: boolean;
+  /** Sent by a machine, so nothing is waiting on a reply. */
+  automated: boolean;
   labels: string[];
   /** Which of Gmail's own tabs the message landed in. */
   tab: GmailCategory;
@@ -167,6 +169,30 @@ async function listMessageIds(
   return { ids: ids.slice(0, max), truncated: ids.length > max };
 }
 
+/** Mailbox names that never read what you send back. */
+const AUTOMATED_SENDER =
+  /^(no-?reply|do-?not-?reply|notifications?|alerts?|support|billing|receipts?)@/i;
+
+/** Gmail's own tabs for mail that arrives rather than is written to you. */
+const AUTOMATED_LABELS = ["CATEGORY_PROMOTIONS", "CATEGORY_UPDATES"];
+
+/**
+ * Whether a machine sent this. Deliberately eager: a false "needs reply" costs
+ * the reader a wasted look at every scan, where a missed one costs a single
+ * message that is still sitting in the list.
+ */
+function isAutomated(data: gmail_v1.Schema$Message, fromEmail: string) {
+  if (AUTOMATED_SENDER.test(fromEmail)) return true;
+  // Anything offering an unsubscribe is a broadcast, not a correspondent.
+  if (header(data, "List-Unsubscribe")) return true;
+
+  const auto = header(data, "Auto-Submitted").trim().toLowerCase();
+  if (auto && auto !== "no") return true;
+
+  const labels = data.labelIds ?? [];
+  return AUTOMATED_LABELS.some((label) => labels.includes(label));
+}
+
 /** Headers and snippet, with no body downloaded. What bulk mail gets. */
 function headline(data: gmail_v1.Schema$Message, id: string): DigestMessage {
   const { from, fromEmail } = parseFrom(header(data, "From"));
@@ -179,6 +205,7 @@ function headline(data: gmail_v1.Schema$Message, id: string): DigestMessage {
     snippet: data.snippet ?? "",
     receivedAt: new Date(Number(data.internalDate ?? 0)).toISOString(),
     unread: data.labelIds?.includes("UNREAD") ?? false,
+    automated: isAutomated(data, fromEmail),
     labels: data.labelIds ?? [],
     tab: categoryOf(data.labelIds ?? []),
     invite: null,
@@ -239,7 +266,13 @@ export async function fetchDay(
         userId: "me",
         id,
         format: "metadata", // headers + snippet only; no bodies to download
-        metadataHeaders: ["From", "Subject", "Date"],
+        metadataHeaders: [
+          "From",
+          "Subject",
+          "Date",
+          "List-Unsubscribe",
+          "Auto-Submitted",
+        ],
       });
       return headline(data, id);
     }),

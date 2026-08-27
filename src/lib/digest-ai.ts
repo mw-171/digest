@@ -4,7 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 
-import { listCache, readCache, writeCache } from "@/lib/ai-cache";
+import { readCache, writeCache } from "@/lib/ai-cache";
 import type { DigestMessage, SignalMessage } from "@/lib/gmail";
 
 /**
@@ -170,12 +170,55 @@ Return one item per input message, with ids copied exactly.`;
 
 type CacheShape = { recap: string; items: z.infer<typeof InsightSchema>["items"] };
 
-function cacheKey(day: string, ids: string[]) {
-  const digest = createHash("sha1")
-    .update(`${PROMPT_VERSION}:${MODEL}:${ids.join(",")}`)
-    .digest("hex")
-    .slice(0, 16);
-  return `${day}-${digest}.json`;
+type CacheItem = z.infer<typeof InsightSchema>["items"][number];
+
+/**
+ * A day's triage, kept per thread rather than per day.
+ *
+ * The old file was keyed on the whole mailbox, so one new message threw away
+ * the answers for every other message and paid to compute them again. Here a
+ * thread carries its own hash and its own items, and only the threads that
+ * moved are ever re-read.
+ */
+type DayCache = {
+  /** Prompt and model. A bump retires the whole file. */
+  version: string;
+  recap: string;
+  /** What the recap was written against, so it is not reused for a new day. */
+  recapHash: string;
+  threads: Record<string, { hash: string; items: CacheItem[] }>;
+};
+
+const sha = (input: string) =>
+  createHash("sha1").update(input).digest("hex").slice(0, 16);
+
+const cacheFile = (day: string) => `${day}-threads.json`;
+
+/** Messages that arrived as one conversation, keyed the way Gmail groups them. */
+const threadOf = (message: DigestMessage) => message.threadId || message.id;
+
+/**
+ * A thread's state: which messages it holds and whether each is still unread.
+ * Sorted, so the same thread hashes the same however the day is ordered.
+ */
+function threadHash(messages: DigestMessage[]) {
+  return sha(
+    messages
+      .map((message) => `${message.id}:${message.unread ? "u" : "r"}`)
+      .sort()
+      .join(","),
+  );
+}
+
+function groupThreads(messages: DigestMessage[]) {
+  const threads = new Map<string, DigestMessage[]>();
+  for (const message of messages) {
+    const key = threadOf(message);
+    const found = threads.get(key);
+    if (found) found.push(message);
+    else threads.set(key, [message]);
+  }
+  return threads;
 }
 
 /**
@@ -300,9 +343,10 @@ function shape(
 
 /**
  * Purpose lines, blurbs, categories, urgencies, deadlines and a recap for one
- * day, cached on disk by the exact set of message ids. Signal is sent with its
- * body and bulk with headers only; falls back to {@link heuristics} when AI is
- * off, unkeyed, or the call fails.
+ * day, cached on disk against the messages and their read state, so a reload
+ * re-triages only when something moved. Signal is sent with its body and bulk
+ * with headers only; falls back to {@link heuristics} when AI is off, unkeyed,
+ * or the call fails.
  */
 export async function fetchInsights(
   day: string,
@@ -318,15 +362,50 @@ export async function fetchInsights(
   // heuristic pass rather than a stale Claude result from an earlier visit.
   if (!useAi) return heuristics(signal, bulk);
 
-  const ids = [...signal, ...bulk].map((message) => message.id);
-  const key = cacheKey(day, ids);
-  const cached = await readCache<CacheShape>(key);
-  if (cached) return shape(cached, signal, bulk);
+  const all: DigestMessage[] = [...signal, ...bulk];
+  const threads = groupThreads(all);
+  const hashes = new Map(
+    [...threads].map(([key, messages]) => [key, threadHash(messages)]),
+  );
+
+  const version = `${PROMPT_VERSION}:${MODEL}`;
+  const prior = await readCache<DayCache>(cacheFile(day));
+  const cache: DayCache =
+    prior?.version === version
+      ? prior
+      : { version, recap: "", recapHash: "", threads: {} };
+
+  // Only the threads whose messages or read state moved. Everything else keeps
+  // the answer it already has.
+  const stale = new Set(
+    [...threads.keys()].filter(
+      (key) => cache.threads[key]?.hash !== hashes.get(key),
+    ),
+  );
+  // The recap describes the whole day, so it turns over when any thread does —
+  // including one that has left the day entirely.
+  const dayHash = sha(
+    [...hashes]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, hash]) => `${key}=${hash}`)
+      .join(","),
+  );
+
+  const settled = [...threads.keys()]
+    .filter((key) => !stale.has(key))
+    .flatMap((key) => cache.threads[key]?.items ?? []);
+
+  // Nothing moved: the mailbox is the one already triaged.
+  if (stale.size === 0 && cache.recapHash === dayHash) {
+    return shape({ recap: cache.recap, items: settled }, signal, bulk);
+  }
 
   if (!process.env.ANTHROPIC_API_KEY) return heuristics(signal, bulk);
 
+  const fresh = (message: DigestMessage) => stale.has(threadOf(message));
+
   const payload = [
-    ...signal.map((message) => ({
+    ...signal.filter(fresh).map((message) => ({
       id: message.id,
       from: message.from,
       fromEmail: message.fromEmail,
@@ -344,7 +423,7 @@ export async function fetchInsights(
           }
         : undefined,
     })),
-    ...bulk.map((message) => ({
+    ...bulk.filter(fresh).map((message) => ({
       id: message.id,
       from: message.from,
       fromEmail: message.fromEmail,
@@ -354,6 +433,16 @@ export async function fetchInsights(
       snippet: message.snippet,
     })),
   ];
+
+  // The rest of the day, in one line each. Not to be re-triaged — it is the
+  // context the recap needs to describe a day it can only partly see.
+  const context = settled.map((item) => ({
+    from: all.find((message) => message.id === item.id)?.from ?? "",
+    purpose: item.purpose,
+    category: item.category,
+    urgency: item.urgency,
+    needsReply: item.needsReply,
+  }));
 
   try {
     const client = new Anthropic();
@@ -369,22 +458,47 @@ export async function fetchInsights(
       messages: [
         {
           role: "user",
-          content: `Triage these ${payload.length} messages from ${day}:\n\n${JSON.stringify(payload, null, 1)}`,
+          content: [
+            `Triage these ${payload.length} messages from ${day}:`,
+            JSON.stringify(payload, null, 1),
+            context.length
+              ? `\nThese ${context.length} were triaged earlier and have not changed. Do not return items for them. They are here so the recap can describe the whole day:\n${JSON.stringify(context, null, 1)}`
+              : "",
+          ].join("\n\n"),
         },
       ],
     });
 
     if (response.stop_reason === "refusal" || !response.parsed_output) {
       console.warn("Claude did not return insights", response.stop_reason);
-      return heuristics(signal, bulk);
+      return shape({ recap: cache.recap, items: settled }, signal, bulk);
     }
 
-    const value: CacheShape = {
+    const returned = new Map(
+      response.parsed_output.items.map((item) => [item.id, item]),
+    );
+    const next: DayCache["threads"] = {};
+    for (const [key, messages] of threads) {
+      next[key] = stale.has(key)
+        ? {
+            hash: hashes.get(key) ?? "",
+            items: messages
+              .map((message) => returned.get(message.id))
+              .filter((item): item is CacheItem => Boolean(item)),
+          }
+        : cache.threads[key];
+    }
+
+    const value: DayCache = {
+      version,
       recap: response.parsed_output.recap,
-      items: response.parsed_output.items,
+      recapHash: dayHash,
+      threads: next,
     };
-    await writeCache(key, value);
-    return shape(value, signal, bulk);
+    await writeCache(cacheFile(day), value);
+
+    const items = Object.values(next).flatMap((thread) => thread.items);
+    return shape({ recap: value.recap, items }, signal, bulk);
   } catch (error) {
     if (error instanceof Anthropic.AuthenticationError) {
       console.warn("ANTHROPIC_API_KEY rejected; using heuristics");
@@ -393,7 +507,9 @@ export async function fetchInsights(
     } else {
       console.error("Claude triage failed", error);
     }
-    return heuristics(signal, bulk);
+    // Threads that were already triaged keep their answers; `shape` fills the
+    // rest from heuristics rather than throwing the whole day away.
+    return shape({ recap: cache.recap, items: settled }, signal, bulk);
   }
 }
 
@@ -406,9 +522,9 @@ export async function readCachedInsight(
   day: string,
   id: string,
 ): Promise<Insight | null> {
-  for (const file of await listCache(`${day}-`)) {
-    const cached = await readCache<CacheShape>(file);
-    const item = cached?.items.find((entry) => entry.id === id);
+  const cached = await readCache<DayCache>(cacheFile(day));
+  for (const thread of Object.values(cached?.threads ?? {})) {
+    const item = thread.items.find((entry) => entry.id === id);
     if (item) {
       return {
         purpose: item.purpose,

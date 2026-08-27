@@ -7,8 +7,9 @@ import { json } from "@/lib/http";
 
 /**
  * One day's messages, triaged. Always hits Gmail so a reload reflects the
- * mailbox as it is now; Claude's own triage is still cached on disk, keyed by
- * the exact set of message ids.
+ * mailbox as it is now; Claude's triage is cached on disk by the message-id
+ * set and the state of those messages, so a reload re-triages only when
+ * something actually moved.
  */
 export const dynamic = "force-dynamic";
 
