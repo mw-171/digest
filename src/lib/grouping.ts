@@ -1,14 +1,9 @@
 import type { DigestItem } from "@/lib/digest";
 
 /**
- * Shape, from data we already have.
- *
- * A day's mail is not a list, it is a handful of conversations that each
- * arrived in pieces. Thirty rows of "Max commented on #412" is thirty rows of
- * the same thing, and the inbox already told us so — every message carries the
- * thread it belongs to and the address it came from. Grouping on those two
- * fields turns a wall into a shape, costs one pass over an array, and cannot
- * hallucinate, which is more than a model summarising the same list could say.
+ * Shape, from data we already have. Every message carries its thread and its
+ * sender, so grouping on those two fields turns a wall of rows into a handful
+ * of conversations in one pass — no model, and nothing to hallucinate.
  */
 
 export type Thread = {
@@ -97,12 +92,9 @@ export function senderLogoUrl(email: string) {
 }
 
 /**
- * `Re: Fwd: Deploy failed` → `Deploy failed`.
- *
- * Only the reply crust comes off here. A bracketed prefix is left alone on
- * purpose: whether `[hackathon/site]` is boilerplate or `[ENG-3089]` is the
- * most useful thing in the line depends on what the *other* subjects in its
- * group look like, which is a question for {@link groupBySender}.
+ * `Re: Fwd: Deploy failed` → `Deploy failed` — only the reply crust comes off.
+ * A bracketed prefix is left alone, because whether it is boilerplate depends
+ * on the other subjects in its group: a question for {@link groupBySender}.
  */
 export function normalizeSubject(subject: string) {
   let value = subject.trim();
@@ -228,11 +220,9 @@ function commonPrefix(values: string[]) {
 }
 
 /**
- * Two to four words on what a pile is, from the pile itself.
- *
- * The boilerplate every subject shares is usually the answer — a repo, a
- * workspace, a list name — because a sender that repeats itself is telling you
- * what it is about. Failing that, who signed the mail.
+ * Two to four words on what a pile is, taken from the pile itself: the
+ * boilerplate every subject shares is usually a repo, a workspace or a list
+ * name. Failing that, who signed the mail.
  */
 function describeGroup(threads: Thread[], prefix: string) {
   const shared = prefix.replace(/[[\]():\s]+/g, " ").trim();
@@ -254,12 +244,9 @@ function describeGroup(threads: Thread[], prefix: string) {
 }
 
 /**
- * What to call a group.
- *
- * A sender's own display name is better than its domain — "GitHub" beats
- * "Github" — but only when the group agrees on one. A pile of PR
- * notifications signed by whoever pushed would otherwise label the whole
- * domain after the busiest colleague.
+ * What to call a group: a sender's display name beats its domain, but only
+ * when the group agrees on one. Otherwise a pile of PR mail signed by whoever
+ * pushed would label the whole domain after the busiest colleague.
  */
 function groupLabel(threads: Thread[], domain: string) {
   const counts = new Map<string, number>();
@@ -361,13 +348,8 @@ export function groupBySender(threads: Thread[], minGroup = 2): SenderGroup[] {
 }
 
 /**
- * The noise in one line, written from the counts.
- *
- * Templated on purpose. This exists to say what the pile is made of, and a
- * model asked to summarise forty subject lines would cost a call, take a
- * second, and occasionally invent a sender — where arithmetic on the groups is
- * instant, free and cannot be wrong. It never repeats a number the rows below
- * already carry.
+ * The noise in one line, written from the counts. Templated on purpose:
+ * arithmetic on the groups is instant, free, and cannot invent a sender.
  */
 export function describeGroups(groups: SenderGroup[]) {
   const total = groups.reduce((sum, group) => sum + group.count, 0);

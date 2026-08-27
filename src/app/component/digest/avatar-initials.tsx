@@ -17,13 +17,9 @@ function initialsOf(name: string) {
 }
 
 /**
- * The sender's face, ringed by the lane the message landed in.
- *
- * Brands get their own logo, which is the picture a person actually recognises
- * in a list; people get initials on their category's colour, because the only
- * photo Gmail's read-only scope would give us is one we cannot fetch. Either
- * way the ring carries the category — a logo sits on white and would otherwise
- * say nothing about which lane it came from.
+ * The sender's face, ringed by the lane the message landed in. Brands get their
+ * logo and people get initials — a read-only scope cannot fetch photos — so the
+ * ring is what carries the category either way.
  */
 export function SenderAvatar({
   name,

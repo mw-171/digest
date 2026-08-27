@@ -8,11 +8,9 @@ import { listCache, readCache, writeCache } from "@/lib/ai-cache";
 import type { DigestMessage, SignalMessage } from "@/lib/gmail";
 
 /**
- * The four lanes a day of mail sorts into.
- *
- * This is the *kind* axis, not the urgency one — what a message is, not how
- * much it wants. Urgency is a separate field, because a bill and a colleague's
- * question are different sorts of thing that can both be due tomorrow.
+ * The four lanes a day of mail sorts into — the *kind* axis, not the urgency
+ * one. Urgency is separate, because a bill and a colleague's question are
+ * different sorts of thing that can both be due tomorrow.
  */
 export const CATEGORIES = ["work", "meetings", "updates", "social"] as const;
 export type Category = (typeof CATEGORIES)[number];
@@ -182,10 +180,8 @@ function cacheKey(day: string, ids: string[]) {
 
 /**
  * Where a message sits when nobody has read it: Gmail's own tab label.
- *
- * Promotions and social are advertising by definition. Forums is the mailing
- * list tab, which belongs with the other things that arrive on a schedule and
- * ask nothing.
+ * Promotions and Social are advertising by definition, and Forums belongs with
+ * the other things that arrive on a schedule and ask nothing.
  */
 export function categoryFromLabel(message: DigestMessage): Category {
   if (message.tab === "promotions" || message.tab === "social") {
@@ -303,18 +299,10 @@ function shape(
 }
 
 /**
- * Purpose lines, card blurbs, categories, urgencies, deadlines and a recap for
- * one day, from Claude. Cached per day on disk, keyed by the exact set of
- * message ids, so revisiting a day costs nothing.
- *
- * Both halves of the day are sent, but not equally: signal arrives with its
- * body, bulk with nothing but the headers Gmail hands over free. The second
- * list is there so every card in the UI has a written line under the sender
- * rather than a raw subject, and it costs a few hundred tokens on a call that
- * was already being made.
- *
- * Falls back to {@link heuristics} when `useAi` is off, when there's no API
- * key, or when the call fails — the digest still renders, just less sharply.
+ * Purpose lines, blurbs, categories, urgencies, deadlines and a recap for one
+ * day, cached on disk by the exact set of message ids. Signal is sent with its
+ * body and bulk with headers only; falls back to {@link heuristics} when AI is
+ * off, unkeyed, or the call fails.
  */
 export async function fetchInsights(
   day: string,

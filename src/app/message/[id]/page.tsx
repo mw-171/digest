@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { RiArrowLeftSLine, RiExternalLinkLine } from "@remixicon/react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -18,6 +19,21 @@ import { summarizeMessage } from "@/lib/message-ai";
 import { CATEGORY_TITLES } from "@/lib/digest";
 import type { Category } from "@/lib/digest-ai";
 import type { FullMessage } from "@/lib/gmail";
+
+/** The subject in the tab, so a pinned message is identifiable. */
+export async function generateMetadata({
+  params,
+}: PageProps<"/message/[id]">): Promise<Metadata> {
+  const auth = await authorizedClient();
+  if (!auth) return { title: "Message" };
+
+  try {
+    const message = await fetchMessage(auth, (await params).id);
+    return { title: message.subject || "Message" };
+  } catch {
+    return { title: "Message" };
+  }
+}
 
 function Label({ children }: { children: React.ReactNode }) {
   return (

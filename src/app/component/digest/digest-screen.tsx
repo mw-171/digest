@@ -18,11 +18,9 @@ export { Column, Footer, Shell };
 
 
 /**
- * The sticky header: the week, the date, and the way to any other date.
- *
- * Nothing else lives up here. The recap, the bar and the tiles all belong to
- * the day being read rather than to the act of choosing one, so they scroll
- * away with the mail they describe and the sticky part stays two rows tall.
+ * The sticky header: the week, the date, and the way to any other date, and
+ * nothing else. The recap, bar and tiles belong to the day being read rather
+ * than to choosing one, so they scroll away with the mail they describe.
  */
 export function HeaderFrame({
   day,
@@ -41,8 +39,8 @@ export function HeaderFrame({
   const away = today !== undefined && day !== today;
 
   return (
-    <header className="sticky top-0 z-10 border-b border-stroke-soft-200 bg-bg-white-0">
-      <Column className="pb-4 pt-4 md:pb-5 md:pt-6">
+    <header className="safe-top sticky top-0 z-10 border-b border-stroke-soft-200 bg-bg-white-0">
+      <Column className="pb-4 md:pb-5 md:pt-2">
         {rail}
 
         <div className="mt-4 flex items-center justify-between gap-3 md:mt-5">
@@ -152,18 +150,10 @@ const byNewest = (a: DigestItem, b: DigestItem) =>
   b.receivedAt.localeCompare(a.receivedAt);
 
 /**
- * The day itself: a sentence, the bar, the four tiles, and whatever the tiles
- * left in the list.
- *
- * Priority order arrives already applied — the server sorts on the urgency
- * Claude assigned, which is the one ranking this page cannot compute for
- * itself. Recent is the cheap local alternative, so switching between them
- * never refetches anything.
- *
- * Social is the one lane that does not render as cards. Forty promotions are
- * forty rows of the same fact, so they collapse into a handful of sender rows
- * whether or not they are the thing being filtered for — the tile above still
- * counts every one of them.
+ * The day itself: a sentence, the bar, the four tiles, and whatever they left.
+ * Priority order arrives already applied from the server, so switching to
+ * Recent never refetches; Social collapses into sender rows rather than cards,
+ * however the tiles are filtered.
  */
 export function DayView({
   digest,

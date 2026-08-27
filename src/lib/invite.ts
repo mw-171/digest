@@ -1,12 +1,8 @@
 /**
- * Calendar invitations, read out of the `text/calendar` part Gmail attaches to
- * them.
- *
- * An invite is not a fourth kind of mail — it belongs in whichever tier its
- * state puts it in, an unanswered RSVP being something that needs you and a
- * confirmed one being something that merely happened. What it does need is its
- * own card, and a card needs the four things a subject line never carries:
- * when it starts, how long it runs, where, and whether you have replied.
+ * Calendar invitations, read out of the `text/calendar` part Gmail attaches.
+ * An invite is not a fifth lane — it sits wherever its state puts it — but it
+ * needs its own card, carrying the four things a subject line never does: when
+ * it starts, how long, where, and whether you have replied.
  */
 export type InviteStatus =
   | "needs-action"

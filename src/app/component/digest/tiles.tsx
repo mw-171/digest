@@ -9,12 +9,9 @@ import type { Category } from "@/lib/digest-ai";
 import type { CategoryGroup } from "@/lib/digest";
 
 /**
- * The two orders a day can be read in.
- *
- * "priority" is the model's answer: it ranks on the urgency Claude assigned
- * each message, so action items and the meetings that are nearly here come
- * first. "recent" is the mailbox's answer, and the one to fall back on when
- * you already know what you are looking for.
+ * The two orders a day can be read in. "priority" is the model's answer, ranked
+ * on the urgency Claude assigned; "recent" is the mailbox's, and the one to
+ * fall back on when you already know what you are looking for.
  */
 export type SortMode = "priority" | "recent";
 
@@ -29,11 +26,9 @@ const SORT_HINT: Record<SortMode, string> = {
 };
 
 /**
- * The day as one bar.
- *
- * Four segments, each as wide as its share of the mail. It answers "what kind
- * of day was this" before a single row is read, and it is the legend for every
- * colour used further down the page.
+ * The day as one bar: four segments, each as wide as its share of the mail. It
+ * answers "what kind of day was this" before a row is read, and is the legend
+ * for every colour further down.
  */
 export function VolumeBar({ categories }: { categories: CategoryGroup[] }) {
   const shown = categories.filter((group) => group.count > 0);
@@ -53,11 +48,9 @@ export function VolumeBar({ categories }: { categories: CategoryGroup[] }) {
 }
 
 /**
- * One tile: a count, a name, and how much of it wants something back.
- *
- * Tapping filters the list below rather than navigating anywhere, so a tile is
- * a toggle — pressed again it clears. That is the whole interaction model of
- * this screen: four numbers, and any one of them can become the list.
+ * One tile: a count, a name, and how much of it wants something back. Tapping
+ * filters the list rather than navigating, so a tile is a toggle — which is the
+ * whole interaction model here: four numbers, any of which can become the list.
  */
 function Tile({
   group,
@@ -90,7 +83,7 @@ function Tile({
       <span className={cn("size-2.5 rounded-[3px]", style.swatch)} />
 
       <span className="block">
-        <span className="block text-title-h5 font-semibold leading-none tracking-[-0.04em] text-text-strong-950 md:text-title-h4">
+        <span className="block text-title-h5 font-semibold tabular-nums leading-none tracking-[-0.04em] text-text-strong-950 md:text-title-h4">
           {group.count}
         </span>
         <span className="mt-1 flex items-baseline gap-1.5">

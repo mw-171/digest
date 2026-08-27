@@ -12,16 +12,10 @@ const GAP = 3;
 export type RailEntry = RailDay & { count?: number; weight?: number };
 
 /**
- * The week as a rail of pills.
- *
- * The bars this replaces spent their height saying how busy a day was, which
- * is a fact worth one glance and never worth the third of the screen it cost.
- * Here the day is the pill and the volume is the pip underneath it: present or
- * absent, heavy or light, and nothing taller than 3px.
- *
- * The window is fixed — it ends today unless you reach past it — so a pill's
- * position means something, and the selection can travel between them instead
- * of the rail sliding underneath.
+ * The week as a rail of pills: the day is the pill and its volume is the 3px
+ * pip underneath, which costs a glance instead of the third of a screen the
+ * old bars did. The window is fixed, so a pill's position means something and
+ * the selection travels between them rather than the rail sliding underneath.
  */
 export function WeekRail({
   week,
@@ -38,11 +32,9 @@ export function WeekRail({
 
   return (
     <div className="relative flex gap-[3px] rounded-2xl bg-bg-weak-50 p-1">
-      {/*
-        One pill-shaped block that slides, rather than a background switched on
-        and off per pill. Its width is a pill's, so a step is one width plus the
-        gap it crosses. Transform only, so it never reflows the row beneath.
-      */}
+      {/* One pill-shaped block that slides, rather than a background switched
+          per pill: a step is one width plus the gap it crosses, and it moves on
+          transform alone so it never reflows the row beneath. */}
       {selected >= 0 && (
         <span
           aria-hidden
@@ -89,7 +81,7 @@ export function WeekRail({
           <span
             suppressHydrationWarning
             className={cn(
-              "text-label-sm font-semibold tracking-[-0.02em] transition-colors duration-300 ease-out md:text-label-md",
+              "text-label-sm font-semibold tabular-nums tracking-[-0.02em] transition-colors duration-300 ease-out md:text-label-md",
               day.selected
                 ? "text-text-white-0"
                 : day.count
@@ -99,11 +91,9 @@ export function WeekRail({
           >
             {day.date}
           </span>
-          {/* Volume, in the only two dimensions a 3px bar has: is there any,
-              and is there a lot. A busy day reads at full strength, a quiet
-              one at half, an empty one not at all. Before the counts land it
-              sits at a third — the pill is already its final size, so this is
-              the only thing that changes when they do. */}
+          {/* Volume, in the only two dimensions a 3px bar has: any, and a lot.
+              Before the counts land it sits at a third — the pill is already
+              its final size, so this is all that changes when they arrive. */}
           <span
             className={cn(
               "h-[3px] w-3.5 rounded-sm transition-colors duration-300 ease-out md:w-5",

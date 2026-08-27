@@ -43,3 +43,5 @@ next-env.d.ts
 scripts
 # digest AI cache
 .cache/
+
+CLAUDE.local.md

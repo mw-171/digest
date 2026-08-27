@@ -1,10 +1,7 @@
 /**
- * Date helpers shared by server and client code. Kept free of any Node or
- * Google imports so client components can use them without dragging
- * `googleapis` into the browser bundle.
- *
- * A "day" is always a `YYYY-MM-DD` string in the timezone of whatever machine
- * is running the app.
+ * Date helpers shared by server and client, kept free of Node and Google
+ * imports so client components do not drag `googleapis` into the bundle.
+ * A "day" is always `YYYY-MM-DD` in the running machine's timezone.
  */
 
 /** `YYYY-MM-DD` for the given date, in local time. */
@@ -56,19 +53,10 @@ export function anchoredWindow(today = toDayString()) {
 }
 
 /**
- * Where the rail should start in order to show `day`.
- *
- * Two rules, and which one applies depends on how you got here:
- *
- * - If `day` is within the window ending today, that is the window. Positions
- *   then mean something — the same date is always in the same place.
- * - Otherwise the rail centres on `day`, three either side, pulled back if
- *   that would run past today.
- *
- * Centring is for arriving somewhere, not for moving around once you are
- * there. Only the date picker calls for it; stepping between pills keeps
- * whatever window it is already in, so the rail stays put and the selection
- * slides along it instead of the whole strip jumping under your finger.
+ * Where the rail should start to show `day`: the window ending today if `day`
+ * falls inside it, otherwise centred on `day` and pulled back from the future.
+ * Only the date picker re-centres — stepping between pills leaves the rail
+ * where it is, so the selection slides rather than the strip jumping.
  */
 export function recentreAnchor(day: string, today = toDayString()) {
   const anchored = anchoredWindow(today);
@@ -90,19 +78,10 @@ export type RailDay = {
 };
 
 /**
- * The rail's pills, labels and all.
- *
- * Which seven days these are, what they are called and which one is today are
- * questions a calendar answers on its own — no mailbox involved — so the rail
- * is built here and rendered immediately. Only the volume pips wait on the
- * network, and they are one 3px bar inside a pill that is already the right
- * size, so nothing moves when they land.
- *
- * Computed wherever it is called, which for the live digest is the browser:
- * the weekday names then come out in the reader's locale rather than the
- * server's. The window is passed in rather than derived, because which seven
- * days are on screen is a thing the page remembers, not a function of the
- * selection.
+ * The rail's pills, labels and all — a calendar question, so it needs no
+ * network and renders immediately while only the volume pips wait. Called in
+ * the browser for the live digest, so weekday names come out in the reader's
+ * locale, and the window is passed in because the page owns it.
  */
 export function railDays(
   window: string[],
@@ -154,18 +133,10 @@ export function daysBetween(from: string, to: string) {
 }
 
 /**
- * A date on a card, read from the day you are looking at rather than from now.
- *
- * Browsing back a week must not turn last Tuesday's "tomorrow" into something
- * a week overdue, so everything here counts from `day` — the date on screen.
- * Only the two nearest days get a word; beyond that it is a real date, because
- * a bare weekday name ("Thu") is unreadable the moment the digest is not
- * today's.
- *
- * "by" is reserved for deadlines; an event gets "on". A meeting on the 28th is
- * not due by the 28th, it happens on it, and saying otherwise turns every
- * invitation into something that looks overdue. The two nearest days need no
- * preposition at all — "today" already says when.
+ * A date on a card, counted from the day on screen rather than from now, so
+ * browsing back cannot turn last Tuesday's "tomorrow" into something overdue.
+ * "by" is for deadlines and "on" for events — a meeting happens on the 28th,
+ * it is not due by it.
  */
 export function formatDeadline(
   due: string,

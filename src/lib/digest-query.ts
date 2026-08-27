@@ -56,19 +56,9 @@ async function getJson<T>(url: string): Promise<T> {
 }
 
 /**
- * Show what we have, then check.
- *
- * The cache is persisted to localStorage, so a day you have opened before
- * paints immediately — on a reload too, not just while paging around. Today is
- * marked stale the moment it mounts, so that paint is followed by a quiet
- * refetch and the mailbox still gets re-read on every reload; the difference
- * is that you read yesterday's answer while it happens instead of a skeleton.
- *
- * A past day is settled — no more mail can arrive into it — so it is not
- * rechecked at all within the cache's lifetime.
- *
- * The AI setting is part of the key, so flipping the toggle swaps between
- * cached views of the same day rather than throwing either of them away.
+ * Show what we have, then check: a day opened before paints instantly from
+ * localStorage, and today's refetch happens behind it instead of a skeleton.
+ * A past day is settled, so it is not rechecked within the cache's lifetime.
  */
 export function dayQuery(day: string, today: string, options: DigestOptions) {
   const params = new URLSearchParams({ date: day });
@@ -87,13 +77,9 @@ export function dayQuery(day: string, today: string, options: DigestOptions) {
 }
 
 /**
- * Same rule for the week's volume bars, plus one: the previous week's bars
- * stand in while the next ones load.
- *
- * Picking a day changes the query key, which would otherwise blank the strip
- * back to a skeleton — a whole block of chrome flickering above content that
- * is itself reloading. The bars barely move between neighbouring days, so
- * holding the old ones is both calmer and truer.
+ * Same rule for the week's volumes, plus one: the previous window's counts
+ * stand in while the next load, so moving the rail never blanks it back to a
+ * skeleton above content that is itself reloading.
  */
 export function weekQuery(anchor: string, today: string) {
   const params = new URLSearchParams({ start: anchor });

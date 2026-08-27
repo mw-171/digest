@@ -90,12 +90,9 @@ function ReplyDot() {
 }
 
 /**
- * What the card actually says.
- *
- * The sender's name leads, because in a list of forty the question is always
- * "who" before "what". Under it, Claude's one-line read of the message —
- * which is the change this layout is really for: a subject line is what a
- * sender chose to call their mail, and a blurb is what the mail says.
+ * What the card actually says. The sender leads, because in a list of forty the
+ * question is "who" before "what"; under it goes Claude's one-line read, since
+ * a subject is what a sender called their mail and a blurb is what it says.
  */
 function CardBody({
   sender,
@@ -165,12 +162,9 @@ function MessageCard({
 }
 
 /**
- * A conversation, as one card.
- *
- * Eighteen replies to the same pull request are one thing that happened, not
- * eighteen. Gmail already tells us which messages belong together, so the card
- * says who is in it and how many there are, and opening it lands on the newest
- * message.
+ * A conversation, as one card: eighteen replies to the same pull request are
+ * one thing that happened. Gmail already groups them, so the card names who is
+ * in it and how many, and opens on the newest.
  */
 function ThreadCard({
   thread,
@@ -209,13 +203,10 @@ function ThreadCard({
 }
 
 /**
- * An invitation, which is the one message where the four things you need are
- * never in the subject line: the date, the time, the place, and whether you
- * have answered. So it gets a date block instead of an avatar and a reply row
- * instead of a deadline.
- *
- * Accept and Decline open the invitation in Gmail rather than answering here:
- * the app holds a read-only Gmail scope, and RSVP is a write.
+ * An invitation — the one message whose four essentials are never in the
+ * subject line — so it gets a date block instead of an avatar and a reply row
+ * instead of a deadline. Accept and Decline open Gmail, because RSVP is a write
+ * and this app holds a read-only scope.
  */
 function InviteCard({ item, day }: { item: DigestItem; day: string }) {
   const invite = item.invite!;
@@ -348,13 +339,10 @@ export function CardList({
 }
 
 /**
- * Social, in three rows instead of forty.
- *
- * These messages were never read — Gmail's labels put them here and only their
- * headers were fetched — so the useful question is not what each one says but
- * what the pile is made of. Threading collapses the bot chatter, grouping by
- * sender turns what is left into a handful of tappable lines, and the sentence
- * above them is arithmetic on those groups rather than a model's guess.
+ * Social, in three rows instead of forty. Only headers were fetched, so the
+ * useful question is what the pile is made of: threading collapses bot chatter,
+ * grouping by sender leaves a few tappable lines, and the sentence above them
+ * is arithmetic rather than a model's guess.
  */
 export function SocialGroups({
   items,
@@ -444,13 +432,9 @@ function Count({ value }: { value: number }) {
 const VISIBLE_THREADS = 5;
 
 /**
- * One source, and what it sent.
- *
- * The header names the sender — never one of its subject lines, which is what
- * made this read as a random email promoted above its siblings — and follows
- * it with two or three words on what the pile is about. Underneath, one row
- * per conversation with the boilerplate they all share stripped off the front,
- * so what is left is the part that differs.
+ * One source, and what it sent. The header names the sender — never one of its
+ * subjects, which read as a random email promoted above its siblings — and each
+ * row below drops the boilerplate they share, leaving the part that differs.
  */
 function SenderRow({ group, day }: { group: SenderGroup; day: string }) {
   const [expanded, setExpanded] = React.useState(false);

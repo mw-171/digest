@@ -2,11 +2,9 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 /**
- * Claude's answers, kept on disk between dev-server restarts.
- *
- * Every key carries a prompt version and the exact inputs it was computed
- * from, so a hit is only ever the same question asked twice. That is what lets
- * the digest recompute from Gmail on every reload without re-billing triage.
+ * Claude's answers, kept on disk between dev-server restarts. Every key carries
+ * a prompt version and its exact inputs, so a hit is only the same question
+ * asked twice — which is what lets the digest re-read Gmail without re-billing.
  */
 function cacheDir() {
   return path.join(process.cwd(), ".cache", "digest");

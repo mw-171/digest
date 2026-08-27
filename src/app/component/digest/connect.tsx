@@ -12,11 +12,9 @@ const SCOPES = [
 ];
 
 /**
- * The four lanes, before there is any mail to put in them.
- *
- * The same colours the tiles use, in the same two-by-two the tiles sit in, so
- * the first screen after connecting is a shape this one already showed. Built
- * from `CATEGORIES` rather than written out, so it cannot drift from them.
+ * The four lanes, before there is any mail to put in them — the tiles' colours
+ * in the tiles' two-by-two, so the first screen after connecting is a shape
+ * this one already showed. Built from `CATEGORIES`, so it cannot drift.
  */
 function Lanes() {
   return (
@@ -34,7 +32,7 @@ function Lanes() {
 /** Signed-out screen: what the app reads, and the one button that starts OAuth. */
 export function Connect({ error }: { error?: string | null }) {
   return (
-    <Column className="flex flex-1 flex-col justify-center py-16">
+    <Column id="content" className="flex flex-1 flex-col justify-center py-16">
       <ClearCache />
       <Lanes />
 

@@ -3,15 +3,10 @@ import * as React from "react";
 import type { Block, ReadableBody, Run } from "@/lib/email-body";
 
 /**
- * Renders the blocks {@link ReadableBody} extracted from an email in the app's
- * own typography. The sender's layout is deliberately gone by this point — see
- * `src/lib/email-body.ts` — so everything here is our type scale, one column,
- * legible at any width.
- *
- * Pictures are dropped rather than rendered. An email's images are its design,
- * not its content: without the layout they were cut for, a logo and three hero
- * shots stacked down the page say less than the sentence beside them. What
- * they carried is in the summary; the originals are in Gmail.
+ * Renders {@link ReadableBody} blocks in the app's own type scale — the
+ * sender's layout is already gone by this point (see `src/lib/email-body.ts`).
+ * Images are dropped: without the layout they were cut for they say less than
+ * the sentence beside them, and the originals are in Gmail.
  */
 
 function Inline({ runs }: { runs: Run[] }) {

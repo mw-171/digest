@@ -1,19 +1,11 @@
 import { parse, NodeType, type HTMLElement, type Node } from "node-html-parser";
 
 /**
- * Turning an email into something readable.
- *
- * A marketing email is not a document — it is a spreadsheet of nested layout
- * tables, spacer cells, hidden preheader text and inline styles, all written
- * for a rendering engine from 2003. Dropping that HTML into the page (or, as
- * this used to, stripping its tags with a regex) gives either a broken 600px
- * table sitting inside our column or a wall of shredded fragments.
- *
- * So we don't render the sender's layout at all. We walk the HTML and keep
- * only what carries meaning — headings, paragraphs, list items, links, real
- * images, quoted replies — and hand back {@link Block}s that the detail page
- * renders in the app's own typography. Layout is *dropped on purpose*, not
- * lost: "Open in Gmail" is one tap away when the original matters.
+ * Turning an email into something readable: a marketing email is nested layout
+ * tables written for a 2003 renderer, so we keep only what carries meaning —
+ * headings, paragraphs, lists, links, quoted replies — as {@link Block}s in the
+ * app's own typography. Layout is dropped on purpose; the original is one tap
+ * away in Gmail.
  */
 
 /** A stretch of text, optionally a link. */
@@ -476,12 +468,10 @@ export function plainText(blocks: Block[]) {
 }
 
 /**
- * Is this a message someone typed, rather than a page someone designed?
- *
- * A real exchange is worth showing in full underneath the summary; a laid-out
- * newsletter is not, because everything that made it readable — the columns,
- * the buttons, the hero image — is exactly what we threw away. The tells are
- * pictures, headings, sheer length and a thicket of links.
+ * Is this a message someone typed, rather than a page someone designed? A real
+ * exchange is worth showing under the summary; a newsletter is not, since what
+ * made it readable is exactly what we threw away — the tells being pictures,
+ * headings, length and a thicket of links.
  */
 export function isConversational(body: ReadableBody) {
   const { blocks } = body;

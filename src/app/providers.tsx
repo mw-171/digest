@@ -14,16 +14,10 @@ import { CACHE_MAX_AGE, CACHE_VERSION } from "@/lib/digest-query";
 export const STORAGE_KEY = "digest-cache";
 
 /**
- * One query cache for the whole session, written through to localStorage.
- *
- * It lives above the router, so paging between days — or opening a message and
- * coming back — reuses whatever has already been triaged instead of asking
- * Gmail and Claude again. Persisting it extends that across reloads: the last
- * digest you saw paints immediately on load, and the refetch that follows
- * happens behind it rather than in front of a skeleton.
- *
- * `gcTime` has to outlive `CACHE_MAX_AGE`, or entries would be dropped from
- * memory before there was anything worth restoring.
+ * One query cache for the session, persisted to localStorage, so paging
+ * between days and reloading both reuse what has already been triaged.
+ * `gcTime` must outlive `CACHE_MAX_AGE` or entries are dropped from memory
+ * before there is anything worth restoring.
  */
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = React.useState(

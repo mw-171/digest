@@ -68,16 +68,9 @@ async function client() {
 }
 
 /**
- * Volumes for the seven days starting at `start`.
- *
- * Separate from {@link getDay} — and much faster, since it only counts ids —
- * so the rail can render while the day is still being triaged. Which seven
- * days those are is the caller's decision: the rail is a thing the page moves
- * around, not something derivable from the day being read.
- *
- * `selected` is left false here; only the page knows what is selected.
- *
- * `cache` dedupes within a render, so several components may call these freely.
+ * Volumes for the seven days starting at `start` — ids only, so the rail can
+ * render while the day is still being triaged. The caller picks the window and
+ * owns `selected`; `cache` dedupes within a render.
  */
 export const getWeek = cache(async (start: string): Promise<WeekDay[]> => {
   const today = toDayString();
@@ -107,12 +100,9 @@ const reader = cache(async () =>
 );
 
 /**
- * The order the day is read in.
- *
- * Urgency first, because that is the one judgement the model was asked to make
- * about how much a message wants. Then whether anything is being asked at all,
- * then the nearest date, and only then the clock — arrival time is the weakest
- * signal there is and it decides nothing but ties.
+ * The order the day is read in: urgency first, since that is the judgement the
+ * model was asked for, then whether anything is being asked, then the nearest
+ * date. Arrival time is the weakest signal and decides nothing but ties.
  */
 function byPriority(a: DigestItem, b: DigestItem) {
   const urgency = URGENCY_RANK[a.urgency] - URGENCY_RANK[b.urgency];

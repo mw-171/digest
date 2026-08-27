@@ -1071,16 +1071,10 @@ h3 {
   overflow-wrap: break-word;
 }
 
-/* Enter/exit animations for the AlignUI overlays.
-   ----------------------------------------------------------------------
-   The kit's modal, dropdown, popover, select and tooltip all carry
-   `animate-in` / `animate-out` class names from tailwindcss-animate, which
-   was never a dependency here — so those classes compiled to nothing and
-   every overlay appeared and vanished on a hard cut. These are the utilities
-   those five components actually reference, and no more.
-
-   Duration reads `--tw-duration`, so a `duration-200` alongside the class
-   drives the animation the same way it drives a transition. */
+/* Enter/exit animations for the AlignUI overlays, whose `animate-in` /
+   `animate-out` classes come from tailwindcss-animate — never a dependency
+   here, so they compiled to nothing and every overlay cut in and out.
+   Duration reads `--tw-duration`, so a `duration-200` alongside drives it. */
 
 @keyframes enter {
   from {
@@ -1151,5 +1145,116 @@ h3 {
   .animate-in,
   .animate-out {
     animation-duration: 1ms;
+  }
+}
+
+/* The digesting indicator: a soft glow travelling four squares. The curve
+   eases to a standstill at both ends of the loop so the wrap shows no reset,
+   and runs a third to five-sixths of the strong colour rather than pale to
+   solid. Peak at 30% keeps the leading square legible; linear, because easing
+   on top of a curve only puts the corners back. */
+
+@keyframes digest-flash {
+  0% {
+    opacity: 0.32;
+  }
+  5% {
+    opacity: 0.3548;
+  }
+  10% {
+    opacity: 0.45;
+  }
+  15% {
+    opacity: 0.58;
+  }
+  20% {
+    opacity: 0.71;
+  }
+  25% {
+    opacity: 0.8052;
+  }
+  30% {
+    opacity: 0.84;
+  }
+  35% {
+    opacity: 0.8335;
+  }
+  40% {
+    opacity: 0.8143;
+  }
+  45% {
+    opacity: 0.7833;
+  }
+  50% {
+    opacity: 0.7421;
+  }
+  55% {
+    opacity: 0.6928;
+  }
+  60% {
+    opacity: 0.6379;
+  }
+  65% {
+    opacity: 0.58;
+  }
+  70% {
+    opacity: 0.5221;
+  }
+  75% {
+    opacity: 0.4672;
+  }
+  80% {
+    opacity: 0.4179;
+  }
+  85% {
+    opacity: 0.3767;
+  }
+  90% {
+    opacity: 0.3457;
+  }
+  95% {
+    opacity: 0.3265;
+  }
+  100% {
+    opacity: 0.32;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .digest-flash {
+    animation: none !important;
+    opacity: 0.5;
+  }
+}
+
+/* Interaction defaults the guidelines ask for on every control. */
+button,
+a,
+label,
+input,
+select,
+textarea,
+[role="button"],
+[role="switch"] {
+  /* No 300ms double-tap-zoom delay, and no grey flash on tap. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Notches and home indicators: the sticky header and the footer sit against
+   both edges, so they own the insets. */
+@supports (padding: env(safe-area-inset-top)) {
+  .safe-top {
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+  .safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* Skeletons pulse and overlays fade; neither should when motion is unwelcome. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse {
+    animation: none !important;
   }
 }

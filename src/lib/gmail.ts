@@ -90,9 +90,8 @@ const BODY_EXCERPT = 4000;
 
 
 /**
- * Midnight-to-midnight bounds as epoch seconds. Gmail's `after:`/`before:`
- * accept epochs, which sidesteps the timezone guessing that `after:2026/08/24`
- * does. Bounds are local to the machine running the server.
+ * Midnight-to-midnight bounds as epoch seconds, which sidesteps the timezone
+ * guessing `after:2026/08/24` invites. Bounds are local to the server.
  */
 function dayBounds(day: string) {
   const start = new Date(`${day}T00:00:00`);
@@ -190,15 +189,10 @@ const byNewest = (a: DigestMessage, b: DigestMessage) =>
   b.receivedAt.localeCompare(a.receivedAt);
 
 /**
- * One day of mail, already split.
- *
- * The split happens at fetch time and on Gmail's own labels, which is what
- * makes the cheap half cheap: bulk mail is two hundred bytes of headers each
- * and its body is never downloaded. Only signal is read in full, and only
- * signal has its category decided by the model.
- *
- * `reader` is the connected address — the one an invite's ATTENDEE lines are
- * matched against to find out whether *you* have replied.
+ * One day of mail, split at fetch time on Gmail's own labels: bulk keeps only
+ * its headers, signal is read in full and is the only half the model sees.
+ * `reader` is the connected address, matched against an invite's ATTENDEE
+ * lines to find out whether you have replied.
  */
 export async function fetchDay(
   auth: OAuthClient,
@@ -259,10 +253,8 @@ export async function fetchDay(
 export type DayVolume = { day: string; count: number; truncated: boolean };
 
 /**
- * How much mail arrived on each of `days`. Used for the week's volume bars, so
- * a count is all we need — this lists ids without fetching any message. Bulk
- * is left out: the rail is meant to show how busy a day was, and forty
- * promotions do not make a busy day.
+ * How much mail arrived on each of `days` — ids only, since the rail needs a
+ * count and nothing else. Bulk is left out: forty promotions are not a busy day.
  */
 export async function fetchVolumes(
   auth: OAuthClient,

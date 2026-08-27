@@ -6,13 +6,9 @@ import * as React from "react";
 import { STORAGE_KEY } from "@/app/providers";
 
 /**
- * Empties the persisted digest cache.
- *
- * Rendered on the signed-out screen, which is the one place we know for
- * certain there is no session — whether you disconnected or the refresh token
- * expired. Days of subject lines and sender names should not outlive the
- * connection they came from, sitting in localStorage for the next person to
- * open the browser.
+ * Empties the persisted digest cache, from the signed-out screen — the one
+ * place we know there is no session. Subject lines and sender names should not
+ * outlive the connection they came from.
  */
 export function ClearCache() {
   const client = useQueryClient();

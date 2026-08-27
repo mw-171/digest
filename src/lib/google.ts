@@ -34,12 +34,10 @@ function isLocal(host: string) {
 }
 
 /**
- * The origin this request actually arrived on.
- *
- * Behind a proxy — Vercel, or anything else that terminates TLS — `Host` is
- * the internal hostname and the public one is in `x-forwarded-host`, so the
- * forwarded pair wins where it exists. `x-forwarded-proto` can be a list when
- * a request crossed more than one hop; the first entry is the client's.
+ * The origin this request actually arrived on. Behind a TLS-terminating proxy
+ * `Host` is internal and the public name is in `x-forwarded-host`, so the
+ * forwarded pair wins; `x-forwarded-proto` may be a list, and the first entry
+ * is the client's.
  */
 export function originFromHeaders(headers: Headers) {
   const host = headers.get("x-forwarded-host") ?? headers.get("host");
@@ -52,16 +50,10 @@ export function originFromHeaders(headers: Headers) {
 }
 
 /**
- * Where Google should send the user back to.
- *
- * Derived from the request rather than baked in, so the same build works on
- * localhost, on a preview deployment and in production. `GOOGLE_REDIRECT_URI`
- * still wins when set, for the case where consent has to land somewhere other
- * than the host that served the page.
- *
- * Google matches this string exactly against the authorized redirect URIs on
- * the OAuth client, and the value sent here must be the same one sent at the
- * token exchange — both come from the same request headers, so they agree.
+ * Where Google sends the user back to, derived from the request so one build
+ * works on localhost, previews and production; `GOOGLE_REDIRECT_URI` overrides.
+ * Google matches it exactly, and the authorize and exchange legs must send the
+ * same string — both read the same headers, so they agree.
  */
 export function redirectUriFromHeaders(headers: Headers) {
   if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI;

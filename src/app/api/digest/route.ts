@@ -6,12 +6,9 @@ import { authorizedClient, isAuthError } from "@/lib/google";
 import { json } from "@/lib/http";
 
 /**
- * One day's messages, triaged.
- *
- * Always hits Gmail. Nothing between this handler and the browser is allowed
- * to answer from a cache, so a tab reload always reflects the mailbox as it is
- * right now. (Claude's own triage is still cached on disk, keyed by the exact
- * set of message ids — same mail, same answer, no second bill.)
+ * One day's messages, triaged. Always hits Gmail so a reload reflects the
+ * mailbox as it is now; Claude's own triage is still cached on disk, keyed by
+ * the exact set of message ids.
  */
 export const dynamic = "force-dynamic";
 

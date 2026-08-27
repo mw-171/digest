@@ -8,12 +8,9 @@ import { readCache, writeCache } from "@/lib/ai-cache";
 import type { FullMessage } from "@/lib/gmail";
 
 /**
- * One email, read for you.
- *
- * The detail view deliberately does not re-render the sender's HTML — see
- * `email-body.ts` for why that never ends well. Instead Claude reads the
- * message and says what it is, what it says, and whether anything is being
- * asked of the reader. The original is always one tap away in Gmail.
+ * One email, read for you. The detail view never re-renders the sender's HTML
+ * (see `email-body.ts`); Claude says what the message is and what it asks, and
+ * the original stays one tap away in Gmail.
  */
 const SummarySchema = z.object({
   summary: z
@@ -70,10 +67,9 @@ function cacheKey(id: string, body: string) {
 }
 
 /**
- * Claude's read of one message. Cached on disk against the message id and the
- * body it was computed from, so reopening an email is free and instant.
- * Returns `source: "none"` when there is no API key or the call fails — the
- * page then falls back to the message's own text.
+ * Claude's read of one message, cached on disk against the id and body it was
+ * computed from. Returns `source: "none"` with no API key or on failure, and
+ * the page falls back to the message's own text.
  */
 export async function summarizeMessage(
   message: FullMessage,
