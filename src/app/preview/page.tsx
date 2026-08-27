@@ -335,5 +335,7 @@ export default async function Preview({ searchParams }: PageProps<"/preview">) {
 
   if (view === "message") return <MessageSkeleton />;
 
-  return <DigestScreen digest={digest} />;
+  // The fixture's week marks the 23rd as today while the digest shows the
+  // 20th, so the route demonstrates a past day: Today button in, times out.
+  return <DigestScreen digest={digest} today="2026-08-23" />;
 }

@@ -26,14 +26,19 @@ export { Column, Footer, Shell };
  */
 export function HeaderFrame({
   day,
+  today,
   rail,
   onSelectDay,
 }: {
   day: string;
+  /** Omitted by the fixture route, which has no live clock. */
+  today?: string;
   rail: React.ReactNode;
   onSelectDay?: (day: string) => void;
 }) {
   const title = formatDayTitle(day);
+  // Nothing to go back to when you are already there.
+  const away = today !== undefined && day !== today;
 
   return (
     <header className="sticky top-0 z-10 border-b border-stroke-soft-200 bg-bg-white-0">
@@ -44,11 +49,37 @@ export function HeaderFrame({
           <h1 className="min-w-0 break-words text-title-h4 tracking-[-0.035em] text-text-strong-950 md:text-title-h3">
             {title.weekday}
           </h1>
-          <CalendarSheet
-            day={day}
-            label={formatPillDate(day)}
-            onSelect={onSelectDay}
-          />
+          <div className="flex shrink-0 items-center gap-2">
+            {/*
+              The way back, as today's date rather than the word for it: a
+              square the same height as the date pill instead of a second
+              label competing with it. It rides with the date rather than
+              living in the picker, so returning never costs opening one.
+            */}
+            {away && (
+              <Button.Root
+                asChild={!onSelectDay}
+                variant="neutral"
+                mode="stroke"
+                size="xsmall"
+                className="w-8 shrink-0 justify-center px-0 font-semibold tabular-nums"
+                title="Today"
+                aria-label={`Jump to today, ${formatPillDate(today)}`}
+                onClick={onSelectDay ? () => onSelectDay(today) : undefined}
+              >
+                {onSelectDay ? (
+                  formatDayTitle(today).dayOfMonth
+                ) : (
+                  <a href="/">{formatDayTitle(today).dayOfMonth}</a>
+                )}
+              </Button.Root>
+            )}
+            <CalendarSheet
+              day={day}
+              label={formatPillDate(day)}
+              onSelect={onSelectDay}
+            />
+          </div>
         </div>
       </Column>
     </header>
@@ -136,12 +167,20 @@ const byNewest = (a: DigestItem, b: DigestItem) =>
  */
 export function DayView({
   digest,
+  today,
   focus,
   onFocus,
   sort,
   onSort,
 }: {
   digest: DayDigest;
+  /**
+   * Arrival times are shown only on today's digest. On a day already behind
+   * you "2:57 PM" answers a question nobody asked — the ordering already says
+   * what came first — and it costs the top line the room a deadline or a
+   * thread count can use instead.
+   */
+  today?: string;
   focus: Category | null;
   onFocus: (next: Category | null) => void;
   sort: SortMode;
@@ -181,7 +220,11 @@ export function DayView({
         <EmptyLane category={focus} onClear={() => onFocus(null)} />
       ) : (
         <>
-          <CardList items={rest} day={digest.day} />
+          <CardList
+            items={rest}
+            day={digest.day}
+            showTime={digest.day === today}
+          />
           <SocialGroups
             items={social}
             day={digest.day}
@@ -200,15 +243,27 @@ export function DayView({
 
 
 /** Fully-resolved digest, no suspense. Used by the fixture route. */
-export function DigestScreen({ digest }: { digest: Digest }) {
+export function DigestScreen({
+  digest,
+  today,
+}: {
+  digest: Digest;
+  /** The fixture's "now", which need not be the day being shown. */
+  today?: string;
+}) {
   const [focus, setFocus] = React.useState<Category | null>(null);
   const [sort, setSort] = React.useState<SortMode>("priority");
 
   return (
     <Shell>
-      <HeaderFrame day={digest.day} rail={<WeekRail week={digest.week} />} />
+      <HeaderFrame
+        day={digest.day}
+        today={today}
+        rail={<WeekRail week={digest.week} />}
+      />
       <DayView
         digest={digest}
+        today={today}
         focus={focus}
         onFocus={setFocus}
         sort={sort}

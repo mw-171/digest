@@ -134,7 +134,15 @@ function CardBody({
 }
 
 /** The ordinary card: who it is from, what it says, and by when. */
-function MessageCard({ item, day }: { item: DigestItem; day: string }) {
+function MessageCard({
+  item,
+  day,
+  showTime,
+}: {
+  item: DigestItem;
+  day: string;
+  showTime: boolean;
+}) {
   return (
     <Link
       href={`/message/${item.id}?date=${day}`}
@@ -148,7 +156,7 @@ function MessageCard({ item, day }: { item: DigestItem; day: string }) {
       <CardBody
         sender={item.from}
         blurb={item.blurb || item.purpose}
-        at={item.receivedAt}
+        at={showTime ? item.receivedAt : undefined}
         trailing={<Deadline item={item} day={day} />}
       />
       {item.needsReply && <ReplyDot />}
@@ -164,7 +172,15 @@ function MessageCard({ item, day }: { item: DigestItem; day: string }) {
  * says who is in it and how many there are, and opening it lands on the newest
  * message.
  */
-function ThreadCard({ thread, day }: { thread: Thread; day: string }) {
+function ThreadCard({
+  thread,
+  day,
+  showTime,
+}: {
+  thread: Thread;
+  day: string;
+  showTime: boolean;
+}) {
   const latest = thread.latest;
 
   return (
@@ -180,7 +196,7 @@ function ThreadCard({ thread, day }: { thread: Thread; day: string }) {
       <CardBody
         sender={participantLabel(thread.participants)}
         blurb={latest.blurb || thread.subject}
-        at={latest.receivedAt}
+        at={showTime ? latest.receivedAt : undefined}
         trailing={
           <span className="rounded-full bg-bg-weak-50 px-1.5 py-0.5 text-label-xs font-semibold text-text-sub-600">
             {thread.count}
@@ -283,10 +299,21 @@ function InviteCard({ item, day }: { item: DigestItem; day: string }) {
 }
 
 /** Whichever card this message deserves. */
-function ThreadEntry({ thread, day }: { thread: Thread; day: string }) {
-  if (thread.count > 1) return <ThreadCard thread={thread} day={day} />;
+function ThreadEntry({
+  thread,
+  day,
+  showTime,
+}: {
+  thread: Thread;
+  day: string;
+  showTime: boolean;
+}) {
+  if (thread.count > 1)
+    return <ThreadCard thread={thread} day={day} showTime={showTime} />;
+  // An invitation shows its event's time, which matters whatever day you are
+  // reading — that is not the same fact as when the mail arrived.
   if (thread.latest.invite) return <InviteCard item={thread.latest} day={day} />;
-  return <MessageCard item={thread.latest} day={day} />;
+  return <MessageCard item={thread.latest} day={day} showTime={showTime} />;
 }
 
 /**
@@ -296,11 +323,25 @@ function ThreadEntry({ thread, day }: { thread: Thread; day: string }) {
  * threads come out in the order their newest message did, so whichever sort
  * the caller applied upstream still holds.
  */
-export function CardList({ items, day }: { items: DigestItem[]; day: string }) {
+export function CardList({
+  items,
+  day,
+  showTime = false,
+}: {
+  items: DigestItem[];
+  day: string;
+  /** Only today's digest carries arrival times. See {@link DayView}. */
+  showTime?: boolean;
+}) {
   return (
     <>
       {threadsOf(items).map((thread) => (
-        <ThreadEntry key={thread.id} thread={thread} day={day} />
+        <ThreadEntry
+          key={thread.id}
+          thread={thread}
+          day={day}
+          showTime={showTime}
+        />
       ))}
     </>
   );

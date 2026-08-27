@@ -173,6 +173,7 @@ export function DigestClient({
     <Shell>
       <HeaderFrame
         day={day}
+        today={today}
         onSelectDay={selectFromPicker}
         rail={<WeekRail week={week} onSelect={selectFromRail} />}
       />
@@ -190,6 +191,7 @@ export function DigestClient({
         >
           <DayView
             digest={dayResult.data}
+            today={today}
             focus={focus}
             onFocus={setFocus}
             sort={sort}
