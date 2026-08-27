@@ -1,5 +1,9 @@
+import { CATEGORY_STYLE } from "./categories";
 import { ClearCache } from "./clear-cache";
+import { Column } from "./layout-frame";
 import * as Button from "@/app/component/ui/button";
+import { CATEGORIES } from "@/lib/digest-ai";
+import { cn } from "@/utils/cn";
 
 const SCOPES = [
   "Message headers, subjects, bodies and dates",
@@ -7,24 +11,39 @@ const SCOPES = [
   "Summaries are generated per day and cached locally",
 ];
 
+/**
+ * The four lanes, before there is any mail to put in them.
+ *
+ * The same colours the tiles use, in the same two-by-two the tiles sit in, so
+ * the first screen after connecting is a shape this one already showed. Built
+ * from `CATEGORIES` rather than written out, so it cannot drift from them.
+ */
+function Lanes() {
+  return (
+    <div aria-hidden className="grid w-[70px] grid-cols-2 gap-1.5">
+      {CATEGORIES.map((key) => (
+        <span
+          key={key}
+          className={cn("size-8 rounded-[10px]", CATEGORY_STYLE[key].swatch)}
+        />
+      ))}
+    </div>
+  );
+}
+
 /** Signed-out screen: what the app reads, and the one button that starts OAuth. */
 export function Connect({ error }: { error?: string | null }) {
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-8 py-16">
+    <Column className="flex flex-1 flex-col justify-center py-16">
       <ClearCache />
-      <div aria-hidden className="flex h-14 items-end gap-[5px]">
-        <span className="h-[26px] w-[15px] rounded-[5px] bg-primary-alpha-16" />
-        <span className="h-[44px] w-[15px] rounded-[5px] bg-primary-base" />
-        <span className="h-[34px] w-[15px] rounded-[5px] bg-primary-alpha-16" />
-        <span className="h-[56px] w-[15px] rounded-[5px] bg-bg-strong-950" />
-      </div>
+      <Lanes />
 
-      <h1 className="mt-6 text-title-h5 tracking-[-0.03em] text-text-strong-950">
+      <h1 className="mt-6 text-title-h4 tracking-[-0.035em] text-text-strong-950 md:text-title-h3">
         See what needs you.
         <br />
         Skip the rest.
       </h1>
-      <p className="mt-3 text-paragraph-sm text-text-sub-600">
+      <p className="mt-3 max-w-prose text-paragraph-sm text-text-sub-600 md:text-paragraph-md">
         Daily Digest reads your Gmail and sorts each day by what it asks of you.
       </p>
 
@@ -41,9 +60,14 @@ export function Connect({ error }: { error?: string | null }) {
         <p className="mt-6 text-paragraph-sm text-error-base">{error}</p>
       )}
 
-      <Button.Root asChild variant="primary" mode="filled" className="mt-7 w-full sm:w-auto sm:self-start sm:px-8">
+      <Button.Root
+        asChild
+        variant="primary"
+        mode="filled"
+        className="mt-7 w-full sm:w-auto sm:self-start sm:px-8"
+      >
         <a href="/api/auth/google">Connect Gmail (read-only)</a>
       </Button.Root>
-    </div>
+    </Column>
   );
 }

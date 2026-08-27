@@ -1,5 +1,5 @@
 import { DigestSkeleton } from "./component/digest/skeletons";
-import { Shell } from "./component/digest/digest-screen";
+import { Shell } from "./component/digest/layout-frame";
 
 export default function Loading() {
   return (

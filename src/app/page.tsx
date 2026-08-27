@@ -1,6 +1,6 @@
 import { Connect } from "./component/digest/connect";
 import { DigestClient } from "./component/digest/digest-client";
-import { Footer, Shell } from "./component/digest/digest-screen";
+import { Footer, Shell } from "./component/digest/layout-frame";
 import { cookies } from "next/headers";
 
 import { AI_COOKIE, parseAiCookie } from "@/lib/preferences";
@@ -23,6 +23,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const errorParam = typeof params.error === "string" ? params.error : null;
 
   if (!isConfigured()) {
+    const callback = await redirectUri();
+
     return (
       <Shell>
         <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-8 py-16">
@@ -31,7 +33,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             Add <code>GOOGLE_CLIENT_ID</code> and{" "}
             <code>GOOGLE_CLIENT_SECRET</code> to <code>.env</code>, then restart
             the dev server. The redirect URI registered in Google Cloud must be{" "}
-            <code>{redirectUri()}</code>.
+            <code>{callback}</code>.
           </p>
         </div>
       </Shell>

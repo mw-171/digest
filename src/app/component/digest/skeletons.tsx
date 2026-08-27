@@ -1,4 +1,4 @@
-import { Column } from "./digest-screen";
+import { Column } from "./layout-frame";
 
 const PILLS = [1, 2, 3, 4, 5, 6, 7];
 const TILES = [1, 2, 3, 4];
