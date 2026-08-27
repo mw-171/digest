@@ -5,13 +5,21 @@
  * bundle.
  */
 
+const MAIL = "https://mail.google.com/mail";
+
 /**
- * A link that opens the real thing. Gmail accepts an address where the `u/0`
- * account index normally goes, which is what makes this land in the right
- * mailbox for someone signed into several — and on a phone the same URL hands
- * off to the Gmail app rather than the mobile web view.
+ * A link that opens the real thing, in the right mailbox for someone signed
+ * into several. The account goes in `authuser`, not in the `u/` path segment:
+ * that segment takes an account *index*, so an address there — encoded to
+ * `%40` no less — is a URL Gmail cannot resolve.
  */
 export function gmailThreadUrl(threadId: string, account = "") {
-  const who = account ? encodeURIComponent(account) : "0";
-  return `https://mail.google.com/mail/u/${who}/#all/${threadId}`;
+  if (!threadId) return `${MAIL}/u/0/`;
+
+  const base = account
+    ? `${MAIL}/?authuser=${encodeURIComponent(account)}`
+    : `${MAIL}/u/0/`;
+
+  // `all` rather than `inbox`, so the link still resolves once it is archived.
+  return `${base}#all/${threadId}`;
 }

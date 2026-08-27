@@ -45,7 +45,10 @@ export function DaySkeleton() {
 
       <div className="grid grid-cols-2 gap-2 pt-5 md:grid-cols-4 md:gap-3">
         {TILES.map((tile) => (
-          <div key={tile} className="h-[88px] rounded-2xl bg-bg-weak-50 md:h-[100px]" />
+          <div
+            key={tile}
+            className="h-[88px] rounded-2xl bg-bg-weak-50 md:h-[100px]"
+          />
         ))}
       </div>
 
@@ -109,9 +112,6 @@ export function MessageSkeleton() {
       <div className="mx-auto w-full min-w-0 max-w-[440px] px-6 md:max-w-2xl md:px-10">
         <header className="flex items-center justify-between pb-3 pt-5 md:pt-8">
           <span className="text-label-sm text-text-sub-600">‹ Digest</span>
-          <span className="text-label-xs uppercase tracking-[0.08em] text-text-soft-400">
-            Read only
-          </span>
         </header>
 
         <div className="animate-pulse pb-16 pt-3">
@@ -139,3 +139,4 @@ export function MessageSkeleton() {
     </div>
   );
 }
+

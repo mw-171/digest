@@ -10,7 +10,11 @@ import { EmailBody } from "@/app/component/digest/email-body";
 import * as Button from "@/app/component/ui/button";
 import { readCachedInsight } from "@/lib/digest-ai";
 import { isValidDay, toDayString } from "@/lib/day";
-import { isConversational, plainText, type ReadableBody } from "@/lib/email-body";
+import {
+  isConversational,
+  plainText,
+  type ReadableBody,
+} from "@/lib/email-body";
 import { formatEventTime } from "@/lib/day";
 import { fetchAccountEmail, fetchMessage } from "@/lib/gmail";
 import { gmailThreadUrl } from "@/lib/gmail-url";
@@ -183,9 +187,6 @@ export default async function MessagePage({
             <RiArrowLeftSLine className="size-4" />
             Digest
           </Link>
-          <span className="text-label-xs uppercase tracking-[0.08em] text-text-soft-400">
-            Read only
-          </span>
         </header>
 
         <div className="pb-16 pt-3">
@@ -239,11 +240,12 @@ export default async function MessagePage({
                 {formatEventTime(message.invite.start, message.invite.allDay)}
                 {message.invite.location && ` · ${message.invite.location}`}
               </p>
-              {message.invite.status === "needs-action" && !message.invite.cancelled && (
-                <p className="mt-3 text-label-xs text-text-soft-400">
-                  You haven&apos;t replied. RSVP from Gmail below.
-                </p>
-              )}
+              {message.invite.status === "needs-action" &&
+                !message.invite.cancelled && (
+                  <p className="mt-3 text-label-xs text-text-soft-400">
+                    You haven&apos;t replied. RSVP from Gmail below.
+                  </p>
+                )}
             </section>
           )}
 
@@ -271,3 +273,4 @@ export default async function MessagePage({
     </div>
   );
 }
+
