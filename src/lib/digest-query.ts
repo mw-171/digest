@@ -1,6 +1,6 @@
 import { keepPreviousData } from "@tanstack/react-query";
 
-import { toDayString, windowFrom } from "@/lib/day";
+import { toDayString } from "@/lib/day";
 import type { DayDigest, WeekDay } from "@/lib/digest";
 
 export type DigestOptions = { useAi: boolean };
@@ -56,18 +56,20 @@ async function getJson<T>(url: string): Promise<T> {
 }
 
 /**
- * Show what we have, then check: a day opened before paints instantly from
- * localStorage, and today's refetch happens behind it instead of a skeleton.
- * A past day is settled, so it is not rechecked within the cache's lifetime.
+ * Show what we have, then check. A day opened before paints instantly from the
+ * persisted cache and the refetch happens behind it rather than in front of a
+ * skeleton — for every day, not just today: mail can be deleted, archived or
+ * read long after it arrived, and a May digest that still lists a message you
+ * threw away in August is simply wrong.
  */
-export function dayQuery(day: string, today: string, options: DigestOptions) {
+export function dayQuery(day: string, options: DigestOptions) {
   const params = new URLSearchParams({ date: day });
   if (!options.useAi) params.set("ai", "0");
 
   return {
     queryKey: dayKey(day, options),
     queryFn: () => getJson<DayDigest>(`/api/digest?${params}`),
-    staleTime: day === today ? 0 : CACHE_MAX_AGE,
+    staleTime: 0,
     // Jumping to an untriaged day used to tear the page down to a skeleton and
     // build it back, which from the date picker reads as the screen falling
     // over. The day you were reading stays up, dimmed, until the new one is
@@ -81,15 +83,14 @@ export function dayQuery(day: string, today: string, options: DigestOptions) {
  * stand in while the next load, so moving the rail never blanks it back to a
  * skeleton above content that is itself reloading.
  */
-export function weekQuery(anchor: string, today: string) {
+export function weekQuery(anchor: string) {
   const params = new URLSearchParams({ start: anchor });
 
   return {
     queryKey: weekKey(anchor),
     queryFn: () => getJson<WeekDay[]>(`/api/week?${params}`),
-    // A window reaching today can still gain mail; one entirely in the past
-    // cannot.
-    staleTime: windowFrom(anchor).includes(today) ? 0 : CACHE_MAX_AGE,
+    // Counts move whenever mail does, which includes mail leaving a past day.
+    staleTime: 0,
     placeholderData: keepPreviousData,
   };
 }

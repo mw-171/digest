@@ -112,18 +112,20 @@ export function Empty({ day }: { day: string }) {
         <span className="h-10 rounded-xl bg-bg-weak-50/60" />
         <span className="h-10 rounded-xl bg-bg-weak-50/60" />
       </div>
-      <p className="mt-6 text-title-h6 tracking-[-0.02em] text-text-strong-950">
-        All four empty
+      <p className="mt-6 text-title-h5 tracking-[-0.02em] text-text-strong-950">
+        No emails
       </p>
       <p className="mt-2 text-paragraph-sm text-text-sub-600">
-        No mail arrived on {title.full}.
+        Nothing arrived on {title.long}.
       </p>
+      {/* The only way out of a day with nothing in it, so it is the one filled
+          button on the screen rather than a quiet outline. */}
       <Button.Root
         asChild
         variant="neutral"
-        mode="stroke"
-        size="xsmall"
-        className="mt-5"
+        mode="filled"
+        size="medium"
+        className="mt-6 px-6"
       >
         <a href={`/?date=${toDayString()}`}>Back to today</a>
       </Button.Root>

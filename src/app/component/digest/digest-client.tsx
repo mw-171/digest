@@ -118,8 +118,8 @@ export function DigestClient({
   });
   const queryClient = useQueryClient();
 
-  const dayResult = useQuery(dayQuery(day, today, options));
-  const weekResult = useQuery(weekQuery(anchor, today));
+  const dayResult = useQuery(dayQuery(day, options));
+  const weekResult = useQuery(weekQuery(anchor));
 
   // The pills are a calendar, so they are computed here and always rendered.
   // The volumes are a mailbox, so they are folded in whenever they arrive.
@@ -205,8 +205,8 @@ export function DigestClient({
   React.useEffect(() => {
     if (!dayResult.isSuccess) return;
     const target = previousDay(day);
-    queryClient.prefetchQuery(dayQuery(target, today, options));
-  }, [day, dayResult.isSuccess, options, queryClient, today]);
+    queryClient.prefetchQuery(dayQuery(target, options));
+  }, [day, dayResult.isSuccess, options, queryClient]);
 
   return (
     <Shell>

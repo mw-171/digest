@@ -120,6 +120,12 @@ export function formatDayTitle(day: string) {
       day: "numeric",
       month: "long",
     }),
+    /** "August 3, 2026" — for a day named far from its own context. */
+    long: date.toLocaleDateString(undefined, {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }),
   };
 }
 
