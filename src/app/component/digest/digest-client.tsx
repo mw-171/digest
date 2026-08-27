@@ -30,6 +30,12 @@ import {
 const FADE_MS = 500;
 
 /**
+ * How long a fetch may run before it earns an indicator. Anything answered
+ * inside this is quick enough that showing "Digesting…" only flashes.
+ */
+const SHOW_DELAY_MS = 200;
+
+/**
  * `on`, but held true for `ms` after it goes false. A layer that unmounts the
  * moment its reason disappears cannot fade out; this keeps it long enough to.
  */
@@ -46,6 +52,26 @@ function useLingering(on: boolean, ms: number) {
   }, [on, ms]);
 
   return alive;
+}
+
+/**
+ * `on`, but only once it has been true for `ms`. The mirror of
+ * {@link useLingering}: that one holds a layer open long enough to fade out,
+ * this one keeps it shut until the wait is worth mentioning.
+ */
+function useDelayed(on: boolean, ms: number) {
+  const [late, setLate] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!on) {
+      setLate(false);
+      return;
+    }
+    const timer = setTimeout(() => setLate(true), ms);
+    return () => clearTimeout(timer);
+  }, [on, ms]);
+
+  return late;
 }
 
 function ErrorPanel({ error }: { error: unknown }) {
@@ -155,15 +181,22 @@ export function DigestClient({
   const hasData = dayResult.data !== undefined;
   /** Nothing to show at all: a first load, or a reload with an empty cache. */
   const cold = !restoring && !hasData;
-  /** Something on screen already, and something better on the way. */
-  const revalidating = hasData && dayResult.isFetching;
-  const busy = restoring || cold || revalidating;
+  /**
+   * Waiting on a day we have never loaded, so what is on screen belongs to a
+   * different one. A day we already hold is shown at once and re-read behind
+   * it — most past days come back unchanged, and covering them for two seconds
+   * to prove it was the reason "Digesting…" appeared on nearly every tap.
+   *
+   * Delayed, so a fetch that lands quickly never flashes an indicator at all.
+   */
+  const waiting = useDelayed(dayResult.isPlaceholderData, SHOW_DELAY_MS);
+  const busy = restoring || cold || waiting;
 
   // Both layers outlive the state that raised them, so each one fades out
   // rather than being unmounted mid-transition. Removing an element is not a
   // transition; keeping it and animating its opacity to zero is.
   const coldLayer = useLingering(cold, FADE_MS);
-  const scrimLayer = useLingering(revalidating, FADE_MS);
+  const scrimLayer = useLingering(waiting, FADE_MS);
   const overlay = useLingering(busy, FADE_MS);
 
   const select = React.useCallback(
@@ -195,6 +228,26 @@ export function DigestClient({
     },
     [anchor, select, today],
   );
+
+  /**
+   * Hold the page still while anything is loading. A list that scrolls under a
+   * dimmed overlay invites reading content that is on its way out, and on a
+   * phone a scroll begun mid-swap lands somewhere arbitrary once the new day
+   * changes the page's height.
+   */
+  React.useEffect(() => {
+    if (!busy) return;
+
+    const { documentElement: root, body } = document;
+    const previous = [root.style.overflow, body.style.overflow] as const;
+    root.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+
+    return () => {
+      root.style.overflow = previous[0];
+      body.style.overflow = previous[1];
+    };
+  }, [busy]);
 
   // Keep the browser's back button working with the pushed URLs.
   React.useEffect(() => {
@@ -242,9 +295,7 @@ export function DigestClient({
           <div
             className={cn(
               "flex flex-1 flex-col",
-              // Only while the content belongs to another day. A quiet
-              // revalidation of the day you are on stays tappable.
-              dayResult.isPlaceholderData && "pointer-events-none select-none",
+              waiting && "pointer-events-none select-none",
             )}
           >
             {dayResult.data ? (
@@ -261,11 +312,10 @@ export function DigestClient({
             )}
           </div>
 
-          {/* Switching days, or re-reading the one you are on: the content
-              stays legible under a wash of the page's own colour. Suppressed
-              while the skeleton is up, so the two can never overlap even
-              through each other's fade. */}
-          {scrimLayer && !coldLayer && <Scrim visible={revalidating} />}
+          {/* The day you were reading stays legible under a wash of the page's
+              own colour. Suppressed while the skeleton is up, so the two can
+              never overlap even through each other's fade. */}
+          {scrimLayer && !coldLayer && <Scrim visible={waiting} />}
 
           {/*
             The cold-start skeleton, over the content rather than instead of
@@ -308,3 +358,4 @@ export function DigestClient({
     </Shell>
   );
 }
+

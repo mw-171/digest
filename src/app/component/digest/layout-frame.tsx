@@ -57,7 +57,7 @@ export function Footer({
     source === "claude"
       ? "Triaged by Claude"
       : source === "heuristic"
-        ? "Sorted by Gmail labels"
+        ? "digest 📬"
         : "";
 
   return (

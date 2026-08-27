@@ -53,18 +53,23 @@ export function DigestingOverlay({ visible = true }: { visible?: boolean }) {
 }
 
 /**
- * A wash of the page's own colour over content on its way out. Softer than the
- * blur it replaces, which had to resolve a whole layer of pixels and made a
- * day-switch feel heavier than the switch itself.
+ * A wash of the page's own colour over content on its way out, which also
+ * catches anything aimed at it. Softer than the blur it replaces, which had to
+ * resolve a whole layer of pixels and made a day-switch feel heavier than the
+ * switch itself.
  */
 export function Scrim({ visible }: { visible: boolean }) {
   return (
     <div
       aria-hidden
       className={cn(
-        "pointer-events-none absolute inset-0 bg-bg-white-0",
+        // Not pass-through: it swallows taps on the content underneath, which
+        // is either the wrong day or about to be replaced by the right one.
+        // `touch-action: none` stops a drag started here from scrolling.
+        "absolute inset-0 touch-none bg-bg-white-0",
         "transition-opacity duration-500 ease-out",
-        visible ? "opacity-60" : "opacity-0",
+        // Nothing to swallow once it has faded out.
+        visible ? "opacity-60" : "pointer-events-none opacity-0",
       )}
     />
   );
