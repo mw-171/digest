@@ -6,15 +6,15 @@ import { CATEGORIES } from "@/lib/digest-ai";
 import { cn } from "@/utils/cn";
 
 const SCOPES = [
-  "Message headers, subjects, bodies and dates",
-  "Never sending, replying, deleting or archiving",
-  "Summaries are generated per day and cached locally",
+  "Highlighted priority and actionable emails",
+  "Easy categories to follow and filter",
+  "Summaries per day and message",
 ];
 
 /**
- * The four lanes, before there is any mail to put in them — the tiles' colours
- * in the tiles' two-by-two, so the first screen after connecting is a shape
- * this one already showed. Built from `CATEGORIES`, so it cannot drift.
+ * The four lanes, before there is any mail to put in them — the tiles' hues in
+ * the tiles' two-by-two, drained because there is nothing in them yet. Built
+ * from `CATEGORIES`, so it cannot drift from the lanes themselves.
  */
 function Lanes() {
   return (
@@ -22,7 +22,10 @@ function Lanes() {
       {CATEGORIES.map((key) => (
         <span
           key={key}
-          className={cn("size-8 rounded-[10px]", CATEGORY_STYLE[key].swatch)}
+          className={cn(
+            "size-8 rounded-[10px]",
+            CATEGORY_STYLE[key].swatchSoft,
+          )}
         />
       ))}
     </div>
@@ -42,7 +45,7 @@ export function Connect({ error }: { error?: string | null }) {
         Skip the rest.
       </h1>
       <p className="mt-3 max-w-prose text-paragraph-sm text-text-sub-600 md:text-paragraph-md">
-        Daily Digest reads your Gmail and sorts each day by what it asks of you.
+        Digest reads your Gmail and shows your day at a glance.
       </p>
 
       <ul className="mt-6 flex flex-col gap-3">
@@ -60,12 +63,13 @@ export function Connect({ error }: { error?: string | null }) {
 
       <Button.Root
         asChild
-        variant="primary"
+        variant="neutral"
         mode="filled"
         className="mt-7 w-full sm:w-auto sm:self-start sm:px-8"
       >
-        <a href="/api/auth/google">Connect Gmail (read-only)</a>
+        <a href="/api/auth/google">Connect Gmail</a>
       </Button.Root>
     </Column>
   );
 }
+

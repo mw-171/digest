@@ -71,10 +71,11 @@ export function Footer({
         <div className="flex min-w-0 items-center justify-between gap-4 md:justify-end">
           <span className="min-w-0 truncate">{provenance}</span>
           <a href="/api/auth/logout" className="shrink-0 underline">
-            Disconnect
+            Log out
           </a>
         </div>
       </Column>
     </footer>
   );
 }
+

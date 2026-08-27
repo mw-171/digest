@@ -1,6 +1,6 @@
 import { Connect } from "./component/digest/connect";
 import { DigestClient } from "./component/digest/digest-client";
-import { Footer, Shell } from "./component/digest/layout-frame";
+import { Shell } from "./component/digest/layout-frame";
 import { cookies } from "next/headers";
 
 import { AI_COOKIE, parseAiCookie } from "@/lib/preferences";
@@ -44,8 +44,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   if (!(await authorizedClient())) {
     return (
       <Shell>
+        {/* No footer here: everything in it — the provenance line, the AI
+            switch, Disconnect — belongs to a session this screen does not
+            have. */}
         <Connect error={errorParam ? (ERRORS[errorParam] ?? errorParam) : null} />
-        <Footer />
       </Shell>
     );
   }

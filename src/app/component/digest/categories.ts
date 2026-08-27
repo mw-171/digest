@@ -10,6 +10,8 @@ import type { Category } from "@/lib/digest-ai";
 export type CategoryStyle = {
   /** The solid swatch: the tile's chip and the stacked volume bar. */
   swatch: string;
+  /** The same hue, drained. For marks that stand for a lane rather than fill it. */
+  swatchSoft: string;
   /**
    * The circle drawn around the sender's face. This is where a card says
    * which lane it belongs to — a bar down the card's edge said the same thing
@@ -27,6 +29,7 @@ export type CategoryStyle = {
 export const CATEGORY_STYLE: Record<Category, CategoryStyle> = {
   work: {
     swatch: "bg-primary-base",
+    swatchSoft: "bg-primary-lighter",
     ring: "ring-primary-base",
     chip: "bg-primary-alpha-10",
     ink: "text-primary-dark",
@@ -34,6 +37,7 @@ export const CATEGORY_STYLE: Record<Category, CategoryStyle> = {
   },
   meetings: {
     swatch: "bg-blue-400",
+    swatchSoft: "bg-blue-200",
     ring: "ring-blue-400",
     chip: "bg-blue-alpha-10",
     ink: "text-blue-700",
@@ -41,6 +45,7 @@ export const CATEGORY_STYLE: Record<Category, CategoryStyle> = {
   },
   updates: {
     swatch: "bg-yellow-600",
+    swatchSoft: "bg-yellow-200",
     ring: "ring-yellow-600",
     chip: "bg-yellow-alpha-10",
     ink: "text-yellow-900",
@@ -48,6 +53,7 @@ export const CATEGORY_STYLE: Record<Category, CategoryStyle> = {
   },
   social: {
     swatch: "bg-text-soft-400",
+    swatchSoft: "bg-bg-soft-200",
     ring: "ring-bg-sub-300",
     chip: "bg-bg-weak-50",
     ink: "text-text-sub-600",
