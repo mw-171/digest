@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
-import { RiArrowLeftSLine, RiExternalLinkLine } from "@remixicon/react";
+import {
+  RiAiGenerateText,
+  RiArrowLeftSLine,
+  RiExternalLinkLine,
+} from "@remixicon/react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import * as React from "react";
@@ -7,6 +11,7 @@ import * as React from "react";
 import { SenderAvatar } from "@/app/component/digest/avatar-initials";
 import { CATEGORY_STYLE } from "@/app/component/digest/categories";
 import { EmailBody } from "@/app/component/digest/email-body";
+import { CopyDraft } from "@/app/component/drafts/copy-draft";
 import * as Button from "@/app/component/ui/button";
 import { readCachedInsight } from "@/lib/digest-ai";
 import { isValidDay, toDayString } from "@/lib/day";
@@ -19,7 +24,9 @@ import { formatEventTime } from "@/lib/day";
 import { fetchAccountEmail, fetchMessage } from "@/lib/gmail";
 import { gmailThreadUrl } from "@/lib/gmail-url";
 import { authorizedClient } from "@/lib/google";
+import { draftReply } from "@/lib/draft-ai";
 import { summarizeMessage } from "@/lib/message-ai";
+import { voiceForDrafting } from "@/lib/voice";
 import { CATEGORY_TITLES } from "@/lib/digest";
 import type { Category } from "@/lib/digest-ai";
 import type { FullMessage } from "@/lib/gmail";
@@ -135,6 +142,137 @@ async function Reading({
   );
 }
 
+/**
+ * A gap the model refused to invent its way past. Marked rather than left in
+ * the sentence, so the one thing you have to fill in is the one thing you see.
+ */
+const PLACEHOLDER = /\[[^\]\n]{1,40}\]/g;
+
+function withPlaceholders(text: string) {
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+
+  for (const match of text.matchAll(PLACEHOLDER)) {
+    const at = match.index ?? 0;
+    if (at > last) parts.push(text.slice(last, at));
+    parts.push(
+      <mark
+        key={at}
+        className="rounded bg-yellow-alpha-10 px-1 font-medium text-yellow-900"
+      >
+        {match[0]}
+      </mark>,
+    );
+    last = at + match[0].length;
+  }
+
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
+/** Nothing to write in: the voice has never been read, or Claude is unreachable. */
+function NoDraft({ unread }: { unread: boolean }) {
+  return (
+    <section className="mt-7 rounded-2xl border border-stroke-soft-200 p-5 md:p-6">
+      <Label>Draft reply</Label>
+      <p className="mt-2.5 text-paragraph-sm text-text-sub-600">
+        {unread
+          ? "A draft is written in your voice, and your voice has not been read yet. Open Drafts once and it will be ready here."
+          : "The draft could not be written this time. Reload the page to try again."}
+      </p>
+      {unread && (
+        <Button.Root
+          asChild
+          variant="neutral"
+          mode="stroke"
+          size="xsmall"
+          className="mt-4"
+        >
+          <Link href="/drafts">Read my voice</Link>
+        </Button.Root>
+      )}
+    </section>
+  );
+}
+
+/**
+ * A reply, written the way you write. Gmail is connected read-only, so this is
+ * text to copy rather than a draft in your mailbox — which the section says
+ * plainly rather than letting the button imply otherwise.
+ */
+async function Draft({
+  message,
+  body,
+  account,
+}: {
+  message: FullMessage;
+  body: ReadableBody;
+  account: string;
+}) {
+  const voice = await voiceForDrafting(account);
+  const draft = await draftReply(message, plainText(body.blocks), voice);
+
+  if (draft.source === "none") return <NoDraft unread={!voice.profile.summary} />;
+
+  return (
+    <section className="mt-7 rounded-2xl border border-stroke-soft-200 p-5 md:p-6">
+      <div className="flex items-center justify-between gap-3">
+        <Label>Draft reply</Label>
+        <span className="inline-flex shrink-0 items-center gap-1.5 text-label-xs text-text-soft-400">
+          <RiAiGenerateText aria-hidden className="size-3.5" />
+          In your voice
+        </span>
+      </div>
+
+      <p className="mt-3 whitespace-pre-wrap break-words text-paragraph-md leading-relaxed text-text-strong-950">
+        {withPlaceholders(draft.body)}
+      </p>
+
+      {draft.notes.length > 0 && (
+        <ul className="mt-4 flex flex-col gap-1.5 border-t border-stroke-soft-200 pt-4">
+          {draft.notes.map((note) => (
+            <li
+              key={note}
+              className="flex gap-2.5 text-label-xs text-text-sub-600"
+            >
+              <span
+                aria-hidden
+                className="mt-[6px] size-[5px] shrink-0 rounded-[2px] bg-yellow-600"
+              />
+              <span className="min-w-0 break-words">{note}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-stroke-soft-200 pt-4">
+        <CopyDraft text={draft.body} />
+        <p className="text-label-xs text-text-soft-400">
+          Not saved to Gmail yet — digest only reads your mail. Copy it into a
+          reply.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function DraftSkeleton() {
+  return (
+    <div
+      className="mt-7 rounded-2xl border border-stroke-soft-200 p-5 md:p-6"
+      aria-hidden
+    >
+      <div className="h-2.5 w-20 rounded-full bg-bg-weak-50" />
+      <div className="mt-4 flex flex-col gap-2.5">
+        <div className="h-3 w-[64%] rounded-full bg-bg-weak-50" />
+        <div className="h-3 w-full rounded-full bg-bg-weak-50" />
+        <div className="h-3 w-[88%] rounded-full bg-bg-weak-50" />
+        <div className="mt-2 h-3 w-[30%] rounded-full bg-bg-weak-50" />
+      </div>
+    </div>
+  );
+}
+
 function ReadingSkeleton() {
   return (
     <div className="mt-6 rounded-2xl bg-bg-weak-50 p-5 md:p-6" aria-hidden>
@@ -156,6 +294,9 @@ export default async function MessagePage({
   const query = await searchParams;
   const requested = typeof query.date === "string" ? query.date : toDayString();
   const day = isValidDay(requested) ? requested : toDayString();
+  // In the URL rather than in state: a draft is worth sharing, reloading and
+  // going back from, and it is what the card's button asks for.
+  const wantsDraft = query.draft === "1";
 
   const auth = await authorizedClient();
   // Not connected: the digest is where reconnecting starts.
@@ -175,6 +316,9 @@ export default async function MessagePage({
     ? "meetings"
     : (insight?.category ?? "updates");
   const received = new Date(message.receivedAt);
+  // An invitation wants an RSVP rather than a written reply, and Gmail's own
+  // buttons already do that better than a paragraph would.
+  const needsReply = Boolean(insight?.needsReply) && !message.invite;
 
   return (
     <div className="flex min-h-dvh flex-col bg-bg-white-0">
@@ -252,6 +396,27 @@ export default async function MessagePage({
           <React.Suspense fallback={<ReadingSkeleton />}>
             <Reading message={message} body={message.body} />
           </React.Suspense>
+
+          {wantsDraft ? (
+            <React.Suspense fallback={<DraftSkeleton />}>
+              <Draft message={message} body={message.body} account={account} />
+            </React.Suspense>
+          ) : (
+            needsReply && (
+              <Button.Root
+                asChild
+                variant="neutral"
+                mode="stroke"
+                size="medium"
+                className="mt-7 w-full sm:w-auto sm:px-6"
+              >
+                <Link href={`/message/${id}?date=${day}&draft=1`}>
+                  <Button.Icon as={RiAiGenerateText} />
+                  Draft a reply
+                </Link>
+              </Button.Root>
+            )
+          )}
 
           <Button.Root
             asChild

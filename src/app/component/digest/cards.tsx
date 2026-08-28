@@ -1,6 +1,6 @@
 "use client";
 
-import { RiReplyLine } from "@remixicon/react";
+import { RiAiGenerateText, RiReplyLine } from "@remixicon/react";
 import Link from "next/link";
 import * as React from "react";
 
@@ -91,6 +91,7 @@ function Face({ item }: { item: DigestItem }) {
 /** Sender first: in a list of forty the question is "who" before "what". */
 function CardBody({
   sender,
+  href,
   blurb,
   count,
   trailing,
@@ -99,6 +100,8 @@ function CardBody({
   children,
 }: {
   sender: string;
+  /** Where the card goes. Carried by the name, stretched over the whole card. */
+  href: string;
   blurb: string;
   count?: number;
   trailing?: React.ReactNode;
@@ -111,16 +114,21 @@ function CardBody({
     <span className="min-w-0 flex-1 overflow-hidden">
       <span className="flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1.5">
-          <span
+          {/* The link cannot wrap the card: a card with a second action on it
+              would then be a button inside an anchor. So the name is the link
+              and its `::after` covers everything behind the rest. */}
+          <Link
+            href={href}
             className={cn(
-              "truncate text-label-sm md:text-label-md",
+              "truncate text-label-sm outline-none md:text-label-md",
+              "after:absolute after:inset-0 focus-visible:underline",
               read
                 ? "font-medium text-text-sub-600"
                 : "font-semibold text-text-strong-950",
             )}
           >
             {sender}
-          </span>
+          </Link>
           {count !== undefined && (
             <span className="shrink-0 text-label-xs font-medium tabular-nums text-text-soft-400">
               · {count}
@@ -144,6 +152,62 @@ function CardBody({
   );
 }
 
+/**
+ * Writes the reply for you, in the voice read off your own sent mail. A link
+ * rather than a button: it opens the message, where the draft is written and
+ * shown. It sits beside the state pill because that is where the card says a
+ * reply is owed, and this is the one thing you can do about it.
+ */
+function DraftLink({ item, day }: { item: DigestItem; day: string }) {
+  return (
+    <Link
+      href={`/message/${item.id}?date=${day}&draft=1`}
+      className={cn(
+        // Above the name's stretched link, which covers the whole card: a tap
+        // here belongs to this chip and never opens the message behind it.
+        "relative z-10 inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full",
+        "bg-primary-alpha-10 px-2 py-0.5 text-label-xs font-medium text-primary-base",
+        // The chip is the pill's height so the two read as one row. The
+        // pseudo-element is the 44px a thumb needs, and it grows away from the
+        // pill so a tap meant for one is never answered by the other.
+        "after:absolute after:-inset-y-3 after:left-0 after:-right-2",
+        "touch-manipulation outline-none transition-colors duration-200 ease-out",
+        "hover:bg-primary-alpha-16 focus-visible:ring-2 focus-visible:ring-primary-alpha-24",
+      )}
+    >
+      <RiAiGenerateText aria-hidden className="size-3.5 shrink-0" />
+      Draft
+      {/* Read out as "Draft a reply to Marcus Lin", so the name a screen
+          reader hears still starts with the word on screen. */}
+      <span className="sr-only"> a reply to {item.from}</span>
+    </Link>
+  );
+}
+
+/**
+ * The end of the top line: what state the message is in, then the one thing
+ * the card lets you do about it.
+ */
+function Trailing({
+  item,
+  day,
+  showTime,
+}: {
+  item: DigestItem;
+  day: string;
+  showTime: boolean;
+}) {
+  const corner = <Corner item={item} day={day} showTime={showTime} />;
+  if (!item.needsReply) return corner;
+
+  return (
+    <span className="flex shrink-0 items-center gap-1.5">
+      {corner}
+      <DraftLink item={item} day={day} />
+    </span>
+  );
+}
+
 function MessageCard({
   item,
   day,
@@ -156,19 +220,17 @@ function MessageCard({
   compact: boolean;
 }) {
   return (
-    <Link
-      href={`/message/${item.id}?date=${day}`}
-      className={cn(CARD, "outline-none")}
-    >
+    <div className={CARD}>
       <Face item={item} />
       <CardBody
         sender={item.from}
+        href={`/message/${item.id}?date=${day}`}
         blurb={item.blurb || item.purpose}
         compact={compact}
         read={!item.unread}
-        trailing={<Corner item={item} day={day} showTime={showTime} />}
+        trailing={<Trailing item={item} day={day} showTime={showTime} />}
       />
-    </Link>
+    </div>
   );
 }
 
@@ -187,21 +249,19 @@ function ThreadCard({
   const latest = thread.latest;
 
   return (
-    <Link
-      href={`/message/${latest.id}?date=${day}`}
-      className={cn(CARD, "outline-none")}
-    >
+    <div className={CARD}>
       <Face item={latest} />
       <CardBody
         sender={participantLabel(thread.participants)}
+        href={`/message/${latest.id}?date=${day}`}
         blurb={latest.blurb || thread.subject}
         // Two is just a reply; a conversation starts being one at three.
         count={thread.count >= 3 ? thread.count : undefined}
         compact={compact}
         read={!latest.unread}
-        trailing={<Corner item={latest} day={day} showTime={showTime} />}
+        trailing={<Trailing item={latest} day={day} showTime={showTime} />}
       />
-    </Link>
+    </div>
   );
 }
 
