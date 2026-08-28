@@ -95,9 +95,8 @@ export const EMPTY_PROFILE: VoiceProfile = {
 };
 
 const MODEL = "claude-opus-5";
-// Bump when the prompt or the schema changes so old entries are ignored. It is
-// exported because anything else that keeps a profile has to retire with it.
-export const PROMPT_VERSION = 2;
+// Bump when the prompt or the schema changes so old entries are ignored.
+const PROMPT_VERSION = 2;
 
 const SYSTEM = `You read a person's own sent email and describe how they write.
 

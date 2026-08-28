@@ -2,7 +2,8 @@ import { keepPreviousData } from "@tanstack/react-query";
 
 import { toDayString } from "@/lib/day";
 import type { DayDigest, WeekDay } from "@/lib/digest";
-import type { Voice } from "@/lib/voice";
+import type { ReplyDraft } from "@/lib/draft-ai";
+import type { DraftingVoice, Voice } from "@/lib/voice";
 
 export type DigestOptions = { useAi: boolean };
 
@@ -39,6 +40,22 @@ export const weekKey = (anchor: string) =>
 // inside a day, so it is the same answer wherever you open it.
 export const voiceKey = () => ["voice"] as const;
 
+/**
+ * A short stable id for a voice. The draft is cached against it, so re-reading
+ * your voice writes a new draft and re-reading the same one does not.
+ */
+function fingerprint(value: unknown) {
+  const text = JSON.stringify(value);
+  let hash = 5381;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = ((hash << 5) + hash + text.charCodeAt(index)) | 0;
+  }
+  return (hash >>> 0).toString(36);
+}
+
+export const draftKey = (id: string, voiceId: string) =>
+  ["draft", id, voiceId] as const;
+
 export class DigestRequestError extends Error {
   status: number;
   reconnect: boolean;
@@ -51,8 +68,8 @@ export class DigestRequestError extends Error {
   }
 }
 
-async function getJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, { cache: "no-store" });
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, { cache: "no-store", ...init });
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
@@ -65,6 +82,15 @@ async function getJson<T>(url: string): Promise<T> {
 
   return response.json();
 }
+
+const getJson = <T,>(url: string) => request<T>(url);
+
+const postJson = <T,>(url: string, body: unknown) =>
+  request<T>(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 
 // Show what we have, then check — every day, not just today. Mail can be
 // deleted or read long after it arrived.
@@ -101,16 +127,44 @@ export function previousDay(day: string) {
 }
 
 /**
- * How you write, read off your own sent mail. Kept fresh for an hour: the
- * answer moves only when you send something, and re-reading it costs a Gmail
- * sweep even when Claude's half is cached.
+ * How you write, read off your own sent mail. Never stale, so it is fetched
+ * once and then read from the cache on every later visit, across reloads too.
+ * The answer moves only when you send more mail, and re-reading it sweeps
+ * fifty messages out of Gmail even when Claude's half is already cached, so
+ * the only thing that asks for it again is the Read again button.
  */
-export const VOICE_STALE_MS = 60 * 60 * 1000;
-
 export function voiceQuery() {
   return {
     queryKey: voiceKey(),
     queryFn: () => getJson<Voice>("/api/voice"),
-    staleTime: VOICE_STALE_MS,
+    staleTime: Infinity,
+    // Outlives the tab: a query dropped from memory while you read the digest
+    // would fetch again on the way back.
+    gcTime: Infinity,
+  };
+}
+
+/**
+ * A reply to one message, written in your voice. The voice travels in the
+ * request rather than being read on the server: the server has nowhere to keep
+ * it in production, and re-reading it would sweep fifty sent emails out of
+ * Gmail every time you asked for a draft. The browser already holds one.
+ *
+ * Cached against the message and the voice together, and never stale, so a
+ * draft is written once and read from the cache every time after.
+ */
+export function draftQuery(id: string, voice: Voice | undefined) {
+  const drafting: DraftingVoice | undefined = voice && {
+    profile: voice.profile,
+    medianWords: voice.stats.medianWords,
+  };
+
+  return {
+    queryKey: draftKey(id, drafting ? fingerprint(drafting) : ""),
+    queryFn: () => postJson<ReplyDraft>("/api/draft", { id, voice: drafting }),
+    // Nothing to write in until the voice has landed.
+    enabled: Boolean(drafting && drafting.profile.summary.length > 0),
+    staleTime: Infinity,
+    gcTime: Infinity,
   };
 }

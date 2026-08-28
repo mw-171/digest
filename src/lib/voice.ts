@@ -1,15 +1,8 @@
-import { createHash } from "node:crypto";
 import { cache } from "react";
 
-import { readCache, writeCache } from "@/lib/ai-cache";
 import { fetchAccountEmail, fetchSent, SENT_MAX, type SentMessage } from "@/lib/gmail";
 import { authorizedClient } from "@/lib/google";
-import {
-  analyzeVoice,
-  EMPTY_PROFILE,
-  PROMPT_VERSION,
-  type VoiceProfile,
-} from "@/lib/voice-ai";
+import { analyzeVoice, EMPTY_PROFILE, type VoiceProfile } from "@/lib/voice-ai";
 
 /** One correspondent, and how much of the sample went to them. */
 export type Recipient = { name: string; email: string; count: number };
@@ -103,32 +96,6 @@ export type DraftingVoice = {
 };
 
 /**
- * The last voice that was read, kept beside the day files so writing a draft
- * does not re-sweep the mailbox. Keyed on the account, because the cache
- * directory is one directory and an address is the only thing that separates
- * two of them.
- */
-const rememberedFile = (account: string) =>
-  `voice-profile-${PROMPT_VERSION}-${createHash("sha1").update(account).digest("hex").slice(0, 16)}.json`;
-
-/**
- * How you write, ready to write in. The read one when the drafts tab has been
- * opened before, else read now — a draft is worth the sweep, and after the
- * first one it is remembered.
- */
-export const voiceForDrafting = cache(
-  async (account: string): Promise<DraftingVoice> => {
-    const remembered = account
-      ? await readCache<DraftingVoice>(rememberedFile(account))
-      : null;
-    if (remembered?.profile.summary.length) return remembered;
-
-    const voice = await getVoice();
-    return { profile: voice.profile, medianWords: voice.stats.medianWords };
-  },
-);
-
-/**
  * How you write, read off the last `max` emails you sent. The counted half is
  * always honest; the read half is Claude's, cached on disk against the exact
  * message ids, so opening this page twice costs one call.
@@ -150,11 +117,6 @@ export const getVoice = cache(async (max = SAMPLE_SIZE): Promise<Voice> => {
   const dates = messages.map((message) => message.sentAt).sort();
   const profile = await analyzeVoice(messages);
   const medianWords = median(messages.map((message) => wordsIn(message.text)));
-
-  // Kept for the drafting path, which needs the voice and not the mailbox.
-  if (profile.source === "claude" && account) {
-    await writeCache(rememberedFile(account), { profile, medianWords });
-  }
 
   return {
     stats: {
