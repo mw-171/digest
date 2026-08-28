@@ -1,3 +1,5 @@
+import { fromZone } from "@/lib/timezone";
+
 // From the `text/calendar` part Gmail attaches. An invite needs its own card:
 // when it starts, how long, where, and whether you have replied.
 export type InviteStatus =
@@ -64,46 +66,6 @@ function parseLine(raw: string): Line | null {
       .replace(/\\([,;\\])/g, "$1")
       .trim(),
   };
-}
-
-// Formatting in the zone and reading it back as UTC is the only way to ask
-// this without shipping a timezone database.
-function zoneOffset(instant: number, timeZone: string) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).formatToParts(new Date(instant));
-
-  const read = (type: string) =>
-    Number(parts.find((part) => part.type === type)?.value ?? "0");
-
-  return (
-    Date.UTC(
-      read("year"),
-      read("month") - 1,
-      read("day"),
-      read("hour") % 24,
-      read("minute"),
-      read("second"),
-    ) - instant
-  );
-}
-
-// The first correction is wrong only within an hour of a DST seam, where the
-// offset belonged to the other side of the jump — so read it again and settle.
-function fromZone(utcGuess: number, timeZone: string) {
-  try {
-    const once = utcGuess - zoneOffset(utcGuess, timeZone);
-    return utcGuess - zoneOffset(once, timeZone);
-  } catch {
-    return NaN; // an unknown TZID: the caller falls back to local time
-  }
 }
 
 /**

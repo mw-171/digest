@@ -4,7 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 
-import { readCache, writeCache } from "@/lib/ai-cache";
+import { listCache, readCache, writeCache } from "@/lib/ai-cache";
 import type { DigestMessage, SignalMessage } from "@/lib/gmail";
 
 /**
@@ -184,7 +184,8 @@ type DayCache = {
 const sha = (input: string) =>
   createHash("sha1").update(input).digest("hex").slice(0, 16);
 
-const cacheFile = (day: string) => `${day}-threads.json`;
+const cacheFile = (day: string, timeZone = "server") =>
+  `${day}-${timeZone.replace(/\//g, "-")}-threads.json`;
 
 /** Messages that arrived as one conversation, keyed the way Gmail groups them. */
 const threadOf = (message: DigestMessage) => message.threadId || message.id;
@@ -350,6 +351,8 @@ export async function fetchInsights(
   signal: SignalMessage[],
   bulk: DigestMessage[] = [],
   useAi = true,
+  /** Part of the cache key: the same date is a different day in another zone. */
+  timeZone?: string,
 ): Promise<DayInsights> {
   if (signal.length === 0 && bulk.length === 0) {
     return { recap: "Nothing arrived.", byId: {}, source: "heuristic" };
@@ -365,7 +368,7 @@ export async function fetchInsights(
   );
 
   const version = `${PROMPT_VERSION}:${MODEL}`;
-  const prior = await readCache<DayCache>(cacheFile(day));
+  const prior = await readCache<DayCache>(cacheFile(day, timeZone));
   const cache: DayCache =
     prior?.version === version
       ? prior
@@ -489,7 +492,7 @@ export async function fetchInsights(
       recapHash: dayHash,
       threads: next,
     };
-    await writeCache(cacheFile(day), value);
+    await writeCache(cacheFile(day, timeZone), value);
 
     const items = Object.values(next).flatMap((thread) => thread.items);
     return shape({ recap: value.recap, items }, signal, bulk);
@@ -515,9 +518,13 @@ export async function readCachedInsight(
   day: string,
   id: string,
 ): Promise<Insight | null> {
-  const cached = await readCache<DayCache>(cacheFile(day));
-  for (const thread of Object.values(cached?.threads ?? {})) {
-    const item = thread.items.find((entry) => entry.id === id);
+  // The detail page does not know the reader's zone, and the id is unique
+  // whichever zone's file holds it, so take whichever day-file has it.
+  for (const file of await listCache(`${day}-`)) {
+    const cached = await readCache<DayCache>(file);
+    const item = Object.values(cached?.threads ?? {})
+      .flatMap((thread) => thread.items)
+      .find((entry) => entry.id === id);
     if (item) {
       return {
         purpose: item.purpose,

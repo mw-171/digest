@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { isValidDay, toDayString } from "@/lib/day";
+import { isTimeZone, todayIn } from "@/lib/timezone";
 import { getDay } from "@/lib/digest";
 import { authorizedClient, isAuthError } from "@/lib/google";
 import { json } from "@/lib/http";
@@ -14,9 +15,15 @@ import { json } from "@/lib/http";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const date = request.nextUrl.searchParams.get("date") ?? toDayString();
-  const useAi = request.nextUrl.searchParams.get("ai") !== "0";
-  if (!isValidDay(date) || date > toDayString()) {
+  const params = request.nextUrl.searchParams;
+  // The reader's zone decides where a day starts and when "today" ends.
+  const tz = params.get("tz");
+  const timeZone = isTimeZone(tz) ? tz : undefined;
+  const today = todayIn(timeZone);
+
+  const date = params.get("date") ?? today;
+  const useAi = params.get("ai") !== "0";
+  if (!isValidDay(date) || date > today) {
     return json({ error: "Bad date." }, 400);
   }
 
@@ -25,7 +32,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    return json(await getDay(date, useAi));
+    return json(await getDay(date, useAi, timeZone));
   } catch (error) {
     console.error("Could not build the digest", error);
     return json(

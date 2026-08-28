@@ -5,18 +5,34 @@ import type { DayDigest, WeekDay } from "@/lib/digest";
 
 export type DigestOptions = { useAi: boolean };
 
+/**
+ * The reader's IANA zone, which decides where a day starts. Sent with every
+ * request because the server's own midnight is not theirs — on Vercel it is
+ * UTC, which files an evening's mail under tomorrow.
+ */
+export function timeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  } catch {
+    return "";
+  }
+}
+
 // Bump on any payload shape change: the persisted cache is thrown away rather
 // than rehydrated into a UI that no longer understands it.
 export const CACHE_VERSION = "5";
 
 export const CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
 
+// The zone is part of the key: the same date is a different set of mail in
+// another zone, and a persisted cache can outlive a flight.
 export const dayKey = (day: string, options: DigestOptions) =>
-  ["day", day, options.useAi ? "ai" : "plain"] as const;
+  ["day", day, options.useAi ? "ai" : "plain", timeZone()] as const;
 
 // Keyed on the window, not the day, so stepping between days inside one reads
 // a single cached answer and the pills never blink.
-export const weekKey = (anchor: string) => ["week", anchor] as const;
+export const weekKey = (anchor: string) =>
+  ["week", anchor, timeZone()] as const;
 
 export class DigestRequestError extends Error {
   status: number;
@@ -50,6 +66,7 @@ async function getJson<T>(url: string): Promise<T> {
 export function dayQuery(day: string, options: DigestOptions) {
   const params = new URLSearchParams({ date: day });
   if (!options.useAi) params.set("ai", "0");
+  if (timeZone()) params.set("tz", timeZone());
 
   return {
     queryKey: dayKey(day, options),
@@ -62,6 +79,7 @@ export function dayQuery(day: string, options: DigestOptions) {
 
 export function weekQuery(anchor: string) {
   const params = new URLSearchParams({ start: anchor });
+  if (timeZone()) params.set("tz", timeZone());
 
   return {
     queryKey: weekKey(anchor),

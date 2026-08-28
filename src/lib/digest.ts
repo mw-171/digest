@@ -1,6 +1,7 @@
 import { cache } from "react";
 
 import { toDayString, windowFrom } from "@/lib/day";
+import { todayIn } from "@/lib/timezone";
 import {
   CATEGORIES,
   fetchInsights,
@@ -69,10 +70,11 @@ async function client() {
 
 // Ids only, so the rail renders while the day is still being triaged. The
 // caller picks the window and owns `selected`.
-export const getWeek = cache(async (start: string): Promise<WeekDay[]> => {
-  const today = toDayString();
+export const getWeek = cache(
+  async (start: string, timeZone?: string): Promise<WeekDay[]> => {
+  const today = todayIn(timeZone);
   const days = windowFrom(start);
-  const volumes = await fetchVolumes(await client(), days);
+  const volumes = await fetchVolumes(await client(), days, { timeZone });
   const busiest = Math.max(...volumes.map((v) => v.count), 1);
 
   return days.map((d) => {
@@ -115,13 +117,14 @@ function byPriority(a: DigestItem, b: DigestItem) {
 }
 
 export const getDay = cache(
-  async (day: string, useAi = true): Promise<DayDigest> => {
+  async (day: string, useAi = true, timeZone?: string): Promise<DayDigest> => {
     const auth = await client();
     const { signal, bulk, truncated } = await fetchDay(auth, day, {
       reader: await reader(),
+      timeZone,
     });
 
-    const insights = await fetchInsights(day, signal, bulk, useAi);
+    const insights = await fetchInsights(day, signal, bulk, useAi, timeZone);
 
     const withInsight = (message: DigestMessage): DigestItem => {
       const insight = insights.byId[message.id] ?? {

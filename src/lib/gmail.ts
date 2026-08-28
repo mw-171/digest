@@ -2,6 +2,7 @@ import { google, type gmail_v1 } from "googleapis";
 import { plainText, readableBody, type ReadableBody } from "@/lib/email-body";
 import type { OAuthClient } from "@/lib/google";
 import { parseInvite, type Invite } from "@/lib/invite";
+import { dayBoundsIn } from "@/lib/timezone";
 
 /** Gmail's own tab categories, from the CATEGORY_* system labels. */
 export const GMAIL_CATEGORIES = [
@@ -83,15 +84,7 @@ const BODY_EXCERPT = 4000;
  * Midnight-to-midnight bounds as epoch seconds, which sidesteps the timezone
  * guessing `after:2026/08/24` invites. Bounds are local to the server.
  */
-function dayBounds(day: string) {
-  const start = new Date(`${day}T00:00:00`);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-  return {
-    after: Math.floor(start.getTime() / 1000),
-    before: Math.floor(end.getTime() / 1000),
-  };
-}
+
 
 function header(message: gmail_v1.Schema$Message, name: string) {
   const headers = message.payload?.headers ?? [];
@@ -133,8 +126,9 @@ async function listMessageIds(
   day: string,
   max: number,
   filter = "",
+  timeZone?: string,
 ) {
-  const { after, before } = dayBounds(day);
+  const { after, before } = dayBoundsIn(day, timeZone);
   const q = `after:${after} before:${before} -in:chats ${filter}`.trim();
 
   const ids: string[] = [];
@@ -206,15 +200,22 @@ export async function fetchDay(
   day: string,
   {
     reader = "",
+    timeZone,
     max = SIGNAL_MAX,
     bulkMax = BULK_MAX,
-  }: { reader?: string; max?: number; bulkMax?: number } = {},
+  }: {
+    reader?: string;
+    /** The reader's IANA zone. A day is their midnight-to-midnight, not ours. */
+    timeZone?: string;
+    max?: number;
+    bulkMax?: number;
+  } = {},
 ): Promise<DayMail> {
   const gmail = google.gmail({ version: "v1", auth });
 
   const [signalIds, bulkIds] = await Promise.all([
-    listMessageIds(gmail, day, max, SIGNAL_FILTER),
-    listMessageIds(gmail, day, bulkMax, BULK_FILTER),
+    listMessageIds(gmail, day, max, SIGNAL_FILTER, timeZone),
+    listMessageIds(gmail, day, bulkMax, BULK_FILTER, timeZone),
   ]);
 
   const [signal, bulk] = await Promise.all([
@@ -272,12 +273,18 @@ export type DayVolume = { day: string; count: number; truncated: boolean };
 export async function fetchVolumes(
   auth: OAuthClient,
   days: string[],
-  { max = VOLUME_MAX }: { max?: number } = {},
+  { max = VOLUME_MAX, timeZone }: { max?: number; timeZone?: string } = {},
 ): Promise<DayVolume[]> {
   const gmail = google.gmail({ version: "v1", auth });
 
   return mapWithLimit(days, CONCURRENCY, async (day) => {
-    const { ids, truncated } = await listMessageIds(gmail, day, max, SIGNAL_FILTER);
+    const { ids, truncated } = await listMessageIds(
+      gmail,
+      day,
+      max,
+      SIGNAL_FILTER,
+      timeZone,
+    );
     return { day, count: ids.length, truncated };
   });
 }
