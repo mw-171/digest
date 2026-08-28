@@ -7,11 +7,24 @@ import { cn } from "@/utils/cn";
 // Roughly the order the work happens in.
 const LABELS = ["Digesting…", "Summarizing…", "Sorting…"];
 
+/** The drafts tab does different work, so it waits under different words. */
+export const VOICE_LABELS = ["Reading your sent mail…", "Listening…", "Writing it down…"];
+
 const HOLD_MS = 5000;
 const CROSSFADE_MS = 300;
 
 /** A spinner under a word that turns over. Neither reports real progress. */
-export function Digesting({ className }: { className?: string }) {
+export function Digesting({
+  className,
+  labels = LABELS,
+  status = "Loading your digest",
+}: {
+  className?: string;
+  /** The words that turn over. Purely decorative — none is announced. */
+  labels?: string[];
+  /** The one thing a screen reader hears for the whole wait. */
+  status?: string;
+}) {
   const [step, setStep] = React.useState(0);
   const [shown, setShown] = React.useState(true);
 
@@ -19,7 +32,7 @@ export function Digesting({ className }: { className?: string }) {
     // Two timers, so the swap lands at the bottom of the fade.
     const hold = setTimeout(() => setShown(false), HOLD_MS);
     const swap = setTimeout(() => {
-      setStep((current) => (current + 1) % LABELS.length);
+      setStep((current) => (current + 1) % labels.length);
       setShown(true);
     }, HOLD_MS + CROSSFADE_MS);
 
@@ -27,7 +40,7 @@ export function Digesting({ className }: { className?: string }) {
       clearTimeout(hold);
       clearTimeout(swap);
     };
-  }, [step]);
+  }, [step, labels.length]);
 
   return (
     <div
@@ -40,7 +53,7 @@ export function Digesting({ className }: { className?: string }) {
         className="size-6 animate-spin rounded-full border-2 border-bg-soft-200 border-t-text-strong-950 motion-reduce:animate-none"
       />
       {/* One announcement for the whole wait; the rotating word would interrupt. */}
-      <span className="sr-only">Loading your digest</span>
+      <span className="sr-only">{status}</span>
       <span
         aria-hidden
         style={{ transitionDuration: `${CROSSFADE_MS}ms` }}
@@ -50,7 +63,7 @@ export function Digesting({ className }: { className?: string }) {
           shown ? "opacity-100" : "opacity-0",
         )}
       >
-        {LABELS[step]}
+        {labels[step]}
       </span>
     </div>
   );
@@ -58,7 +71,15 @@ export function Digesting({ className }: { className?: string }) {
 
 // Fixed, so it centres on the screen and not on a content box that starts
 // below the header. No z-index: the header's `z-10` stays above it.
-export function DigestingOverlay({ visible = true }: { visible?: boolean }) {
+export function DigestingOverlay({
+  visible = true,
+  labels,
+  status,
+}: {
+  visible?: boolean;
+  labels?: string[];
+  status?: string;
+}) {
   return (
     <div
       className={cn(
@@ -67,7 +88,11 @@ export function DigestingOverlay({ visible = true }: { visible?: boolean }) {
         visible ? "opacity-100" : "opacity-0",
       )}
     >
-      <Digesting className="animate-in fade-in-0 duration-300" />
+      <Digesting
+        className="animate-in fade-in-0 duration-300"
+        labels={labels}
+        status={status}
+      />
     </div>
   );
 }

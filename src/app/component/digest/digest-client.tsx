@@ -6,10 +6,17 @@ import * as React from "react";
 import { Toggle } from "./toggle";
 import { DayView, Footer, HeaderFrame, Shell } from "./digest-screen";
 import { DigestingOverlay, Scrim } from "./digesting";
+import { ErrorPanel } from "./error-panel";
+import {
+  FADE_MS,
+  SHOW_DELAY_MS,
+  useDelayed,
+  useHydrated,
+  useLingering,
+} from "./loading-state";
 import { DaySkeleton } from "./skeletons";
 import { WeekRail } from "./week-rail";
 import type { SortMode } from "./tiles";
-import * as Button from "@/app/component/ui/button";
 import { SHOW_AI_TOGGLE, aiCookieValue } from "@/lib/preferences";
 import { cn } from "@/utils/cn";
 import { railDays, recentreAnchor, toDayString, windowFrom } from "@/lib/day";
@@ -21,73 +28,6 @@ import {
   weekQuery,
   type DigestOptions,
 } from "@/lib/digest-query";
-
-const FADE_MS = 500;
-
-/** A fetch answered inside this never earns an indicator. */
-const SHOW_DELAY_MS = 200;
-
-/** `on`, held for `ms` after it goes false — long enough to fade out. */
-function useLingering(on: boolean, ms: number) {
-  const [alive, setAlive] = React.useState(on);
-
-  React.useEffect(() => {
-    if (on) {
-      setAlive(true);
-      return;
-    }
-    const timer = setTimeout(() => setAlive(false), ms);
-    return () => clearTimeout(timer);
-  }, [on, ms]);
-
-  return alive;
-}
-
-/** `on`, but only once it has been true for `ms`. */
-function useDelayed(on: boolean, ms: number) {
-  const [late, setLate] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!on) {
-      setLate(false);
-      return;
-    }
-    const timer = setTimeout(() => setLate(true), ms);
-    return () => clearTimeout(timer);
-  }, [on, ms]);
-
-  return late;
-}
-
-/**
- * False until React has hydrated. The persisted cache can restore before React
- * reaches this subtree, and rendering that data on the first pass makes the
- * client disagree with the server's HTML — React then rebuilds the whole tree.
- */
-function useHydrated() {
-  const [hydrated, setHydrated] = React.useState(false);
-  React.useEffect(() => setHydrated(true), []);
-  return hydrated;
-}
-
-function ErrorPanel({ error }: { error: unknown }) {
-  const message = error instanceof Error ? error.message : String(error);
-  const reconnect =
-    typeof error === "object" && error !== null && "reconnect" in error
-      ? Boolean((error as { reconnect: unknown }).reconnect)
-      : false;
-
-  return (
-    <div className="mx-auto flex w-full max-w-lg flex-col px-8 py-12">
-      <p className="text-paragraph-sm text-error-base">{message}</p>
-      {reconnect && (
-        <Button.Root asChild variant="primary" mode="filled" className="mt-5">
-          <a href="/api/auth/google">Reconnect Gmail</a>
-        </Button.Root>
-      )}
-    </div>
-  );
-}
 
 /** The digest. Picking a day is component state, never a router round-trip. */
 export function DigestClient({

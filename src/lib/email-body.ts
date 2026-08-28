@@ -498,3 +498,28 @@ export function readableBody(html: string, text: string): ReadableBody {
     source: fromText.length ? "text" : "none",
   };
 }
+
+/**
+ * A reply carries the thread it answers underneath it, and almost every client
+ * bolts a signature on the end. Neither is the writer's voice, and in a sample
+ * both would drown it — so this keeps only the lines they actually typed.
+ */
+const ATTRIBUTION =
+  /^\s*(on\b.{0,200}\bwrote:|-{2,}\s*forwarded message.*|_{5,}|from:\s.+)\s*$/i;
+
+/** The line where the writing stops and the boilerplate under it starts. */
+const SIGN_OFF_BOILERPLATE =
+  /^\s*(--\s*|sent from my .{0,40}|get outlook for .{0,20}|this (e-?mail|message) .{0,200})$/i;
+
+export function ownWriting(text: string) {
+  const kept: string[] = [];
+
+  for (const line of text.split("\n")) {
+    // Everything below is the older message, whoever wrote it.
+    if (ATTRIBUTION.test(line) || SIGN_OFF_BOILERPLATE.test(line)) break;
+    if (line.startsWith(">")) continue; // a block `plainText` marked as quoted
+    kept.push(line);
+  }
+
+  return kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}

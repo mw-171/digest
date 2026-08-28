@@ -2,6 +2,7 @@ import { keepPreviousData } from "@tanstack/react-query";
 
 import { toDayString } from "@/lib/day";
 import type { DayDigest, WeekDay } from "@/lib/digest";
+import type { Voice } from "@/lib/voice";
 
 export type DigestOptions = { useAi: boolean };
 
@@ -33,6 +34,10 @@ export const dayKey = (day: string, options: DigestOptions) =>
 // a single cached answer and the pills never blink.
 export const weekKey = (anchor: string) =>
   ["week", anchor, timeZone()] as const;
+
+// No zone and no date: the voice is read across whatever you last sent, not
+// inside a day, so it is the same answer wherever you open it.
+export const voiceKey = () => ["voice"] as const;
 
 export class DigestRequestError extends Error {
   status: number;
@@ -93,4 +98,19 @@ export function previousDay(day: string) {
   const date = new Date(`${day}T00:00:00`);
   date.setDate(date.getDate() - 1);
   return toDayString(date);
+}
+
+/**
+ * How you write, read off your own sent mail. Kept fresh for an hour: the
+ * answer moves only when you send something, and re-reading it costs a Gmail
+ * sweep even when Claude's half is cached.
+ */
+export const VOICE_STALE_MS = 60 * 60 * 1000;
+
+export function voiceQuery() {
+  return {
+    queryKey: voiceKey(),
+    queryFn: () => getJson<Voice>("/api/voice"),
+    staleTime: VOICE_STALE_MS,
+  };
 }

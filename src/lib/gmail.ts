@@ -1,5 +1,10 @@
 import { google, type gmail_v1 } from "googleapis";
-import { plainText, readableBody, type ReadableBody } from "@/lib/email-body";
+import {
+  ownWriting,
+  plainText,
+  readableBody,
+  type ReadableBody,
+} from "@/lib/email-body";
 import type { OAuthClient } from "@/lib/google";
 import { parseInvite, type Invite } from "@/lib/invite";
 import { dayBoundsIn } from "@/lib/timezone";
@@ -378,4 +383,111 @@ export async function fetchAccountEmail(auth: OAuthClient) {
   const email = data.emailAddress ?? "";
   if (email) accountEmails.set(token, email);
   return email;
+}
+
+/** One email you wrote, cut back to the words you typed. */
+export type SentMessage = {
+  id: string;
+  threadId: string;
+  subject: string;
+  /** The first recipient's display name, or their address. */
+  toName: string;
+  toEmail: string;
+  /** How many people it went to, To and Cc together. */
+  recipients: number;
+  sentAt: string; // ISO
+  /** Written into a thread rather than starting one. */
+  isReply: boolean;
+  /** What you typed. The quoted thread and the signature are already gone. */
+  text: string;
+};
+
+/** Enough of your own mail to hear a voice in, and not so much it costs a lot. */
+export const SENT_MAX = 50;
+
+/** Per message, which is plenty: a voice shows in the first few paragraphs. */
+const SENT_EXCERPT = 2500;
+
+/** Anything shorter is "thanks!" — true, but it teaches nothing. */
+const SENT_MIN_CHARS = 40;
+
+/** The newest `max` ids matching `q`, newest first — Gmail's own order. */
+async function listRecentIds(gmail: gmail_v1.Gmail, q: string, max: number) {
+  const ids: string[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const { data } = await gmail.users.messages.list({
+      userId: "me",
+      q,
+      maxResults: Math.min(500, max - ids.length),
+      pageToken,
+    });
+
+    for (const message of data.messages ?? []) {
+      if (message.id) ids.push(message.id);
+    }
+    pageToken = data.nextPageToken ?? undefined;
+  } while (pageToken && ids.length < max);
+
+  return ids.slice(0, max);
+}
+
+/** Every address in a recipient header — the only reliable way to count them. */
+const ADDRESSES = /[^\s<>,"]+@[^\s<>,"]+/g;
+
+// Splitting on the comma is wrong the moment a display name has one in it
+// (`"Wu, Megan" <m@example.com>`), so an angled address ends the first entry.
+function firstRecipient(value: string) {
+  const angled = value.indexOf(">");
+  return angled === -1 ? (value.split(",")[0] ?? "") : value.slice(0, angled + 1);
+}
+
+/**
+ * Your own recent mail, newest first. Unlike the digest this reads across days
+ * rather than inside one: it is a sample of how you write, not a record of what
+ * happened. Drafts and chats are left out, and so is anything too short to
+ * carry a voice.
+ */
+export async function fetchSent(
+  auth: OAuthClient,
+  { max = SENT_MAX }: { max?: number } = {},
+): Promise<SentMessage[]> {
+  const gmail = google.gmail({ version: "v1", auth });
+  // `in:sent` rather than the SENT label, so a thread you were also copied on
+  // still contributes only the parts you wrote.
+  const ids = await listRecentIds(gmail, "in:sent -in:chats -in:drafts", max);
+
+  const messages = await mapWithLimit(ids, CONCURRENCY, async (id) => {
+    const { data } = await gmail.users.messages.get({
+      userId: "me",
+      id,
+      format: "full", // the body is the whole point
+    });
+
+    const payload = data.payload ?? undefined;
+    const body = payload
+      ? readableBody(findPart(payload, "text/html"), findPart(payload, "text/plain"))
+      : null;
+
+    const to = header(data, "To");
+    const { from: toName, fromEmail: toEmail } = parseFrom(firstRecipient(to));
+    const recipients = `${to} ${header(data, "Cc")}`.match(ADDRESSES)?.length ?? 0;
+
+    return {
+      id: data.id ?? id,
+      threadId: data.threadId ?? "",
+      subject: header(data, "Subject") || "(no subject)",
+      toName,
+      toEmail,
+      recipients,
+      sentAt: new Date(Number(data.internalDate ?? 0)).toISOString(),
+      isReply:
+        Boolean(header(data, "In-Reply-To")) ||
+        /^\s*re:/i.test(header(data, "Subject")),
+      text: ownWriting(body ? plainText(body.blocks) : "").slice(0, SENT_EXCERPT),
+    } satisfies SentMessage;
+  });
+
+  return messages.filter((message) => message.text.length >= SENT_MIN_CHARS);
 }
