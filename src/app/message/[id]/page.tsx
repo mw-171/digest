@@ -264,26 +264,25 @@ export default async function MessagePage({
             <Reading message={message} body={message.body} />
           </React.Suspense>
 
-          {wantsDraft ? (
-            /* A client component on purpose: the voice and the draft are both
-               cached in the browser, which is the only cache that survives a
-               deployment with no writable disk. */
-            <DraftPanel id={id} />
-          ) : (
-            needsReply && (
-              <Button.Root
-                asChild
-                variant="neutral"
-                mode="stroke"
-                size="medium"
-                className="mt-7 w-full sm:w-auto sm:px-6"
-              >
-                <Link href={`/message/${id}?date=${day}&draft=1`}>
-                  <Button.Icon as={RiAiGenerateText} />
-                  Draft a reply
-                </Link>
-              </Button.Root>
-            )
+          {/* Under the summary, and scrolled to on arrival: you asked for a
+              draft, so the page takes you to it. A client component because
+              the voice and the draft are both cached in the browser, which is
+              the only cache a deployment with no writable disk still has. */}
+          {wantsDraft && <DraftPanel id={id} />}
+
+          {!wantsDraft && needsReply && (
+            <Button.Root
+              asChild
+              variant="neutral"
+              mode="stroke"
+              size="medium"
+              className="mt-7 w-full sm:w-auto sm:px-6"
+            >
+              <Link href={`/message/${id}?date=${day}&draft=1`}>
+                <Button.Icon as={RiAiGenerateText} />
+                Draft a reply
+              </Link>
+            </Button.Root>
           )}
 
           <Button.Root

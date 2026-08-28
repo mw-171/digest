@@ -107,6 +107,8 @@ export async function draftReply(
   message: FullMessage,
   bodyText: string,
   voice: DraftingVoice,
+  /** Write a new one rather than return the one already written. */
+  { fresh = false }: { fresh?: boolean } = {},
 ): Promise<ReplyDraft> {
   const body = bodyText.slice(0, MAX_BODY).trim() || message.snippet;
   if (!body) return EMPTY;
@@ -116,8 +118,10 @@ export async function draftReply(
   if (voice.profile.summary.length === 0) return EMPTY;
 
   const key = cacheKey(message.id, body, voice);
-  const cached = await readCache<z.infer<typeof DraftSchema>>(key);
-  if (cached) return { ...cached, source: "claude" };
+  if (!fresh) {
+    const cached = await readCache<z.infer<typeof DraftSchema>>(key);
+    if (cached) return { ...cached, source: "claude" };
+  }
 
   if (!process.env.ANTHROPIC_API_KEY) return EMPTY;
 

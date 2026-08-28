@@ -153,18 +153,33 @@ export function voiceQuery() {
  * Cached against the message and the voice together, and never stale, so a
  * draft is written once and read from the cache every time after.
  */
+const drafting = (voice: Voice): DraftingVoice => ({
+  profile: voice.profile,
+  medianWords: voice.stats.medianWords,
+});
+
 export function draftQuery(id: string, voice: Voice | undefined) {
-  const drafting: DraftingVoice | undefined = voice && {
-    profile: voice.profile,
-    medianWords: voice.stats.medianWords,
-  };
+  const body = voice && drafting(voice);
 
   return {
-    queryKey: draftKey(id, drafting ? fingerprint(drafting) : ""),
-    queryFn: () => postJson<ReplyDraft>("/api/draft", { id, voice: drafting }),
+    queryKey: draftKey(id, body ? fingerprint(body) : ""),
+    queryFn: () => postJson<ReplyDraft>("/api/draft", { id, voice: body }),
     // Nothing to write in until the voice has landed.
-    enabled: Boolean(drafting && drafting.profile.summary.length > 0),
+    enabled: Boolean(body && body.profile.summary.length > 0),
     staleTime: Infinity,
     gcTime: Infinity,
   };
+}
+
+/**
+ * The same request with the cache stepped over on both sides, for the one case
+ * where the point is a different answer to the same question. The caller writes
+ * the result into the draft's cache entry, so the new one is the one kept.
+ */
+export function regenerateDraft(id: string, voice: Voice) {
+  return postJson<ReplyDraft>("/api/draft", {
+    id,
+    voice: drafting(voice),
+    regenerate: true,
+  });
 }

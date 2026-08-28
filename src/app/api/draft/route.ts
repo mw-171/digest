@@ -50,6 +50,8 @@ const Body = z.object({
     }),
     medianWords: z.number().int().min(0).max(10_000),
   }),
+  /** Set by the Regenerate button: write a new one, do not return the old. */
+  regenerate: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -59,14 +61,18 @@ export async function POST(request: NextRequest) {
   const parsed = Body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return json({ error: "Bad request." }, 400);
 
-  const { id, voice } = parsed.data;
+  const { id, voice, regenerate } = parsed.data;
 
   try {
     // The address first: it is what an invite's ATTENDEE lines are matched on.
     const account = await fetchAccountEmail(auth).catch(() => "");
     const message = await fetchMessage(auth, id, account);
 
-    return json(await draftReply(message, plainText(message.body.blocks), voice));
+    return json(
+      await draftReply(message, plainText(message.body.blocks), voice, {
+        fresh: regenerate,
+      }),
+    );
   } catch (error) {
     console.error("Could not write the draft", error);
     return json(
