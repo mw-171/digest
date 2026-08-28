@@ -5,9 +5,16 @@ import { RiRefreshLine } from "@remixicon/react";
 
 import { VoiceSkeleton } from "./voice-skeleton";
 import { VoiceView } from "./voice-screen";
-import { DigestingOverlay, VOICE_LABELS } from "@/app/component/digest/digesting";
+import {
+  DigestingOverlay,
+  VOICE_LABELS,
+} from "@/app/component/digest/digesting";
 import { ErrorPanel } from "@/app/component/digest/error-panel";
-import { FADE_MS, useHydrated, useLingering } from "@/app/component/digest/loading-state";
+import {
+  FADE_MS,
+  useHydrated,
+  useLingering,
+} from "@/app/component/digest/loading-state";
 import { Column, Footer, Shell } from "@/app/component/digest/layout-frame";
 import * as Button from "@/app/component/ui/button";
 import { cn } from "@/utils/cn";
@@ -38,7 +45,7 @@ export function DraftsClient() {
                 Drafts
               </h1>
               <p className="mt-1.5 text-paragraph-sm text-text-sub-600">
-                How you write, read off your own sent mail.
+                How you write, taken from emails you&apos;ve sent.
               </p>
             </div>
             <Button.Root
@@ -53,7 +60,9 @@ export function DraftsClient() {
             >
               <Button.Icon
                 as={RiRefreshLine}
-                className={cn(rereading && "animate-spin motion-reduce:animate-none")}
+                className={cn(
+                  rereading && "animate-spin motion-reduce:animate-none",
+                )}
               />
               {rereading ? "Reading…" : "Read again"}
             </Button.Root>
@@ -94,3 +103,4 @@ export function DraftsClient() {
     </Shell>
   );
 }
+

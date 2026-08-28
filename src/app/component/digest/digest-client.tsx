@@ -225,7 +225,6 @@ export function DigestClient({
       )}
 
       <Footer
-        source={digest?.source}
         toggle={
           SHOW_AI_TOGGLE ? (
             <Toggle

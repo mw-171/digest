@@ -113,7 +113,7 @@ export async function draftReply(
 
   // Nothing to imitate: a draft written from an unread voice is just a model's
   // own, which is the one thing this feature exists not to send.
-  if (!voice.profile.summary) return EMPTY;
+  if (voice.profile.summary.length === 0) return EMPTY;
 
   const key = cacheKey(message.id, body, voice);
   const cached = await readCache<z.infer<typeof DraftSchema>>(key);

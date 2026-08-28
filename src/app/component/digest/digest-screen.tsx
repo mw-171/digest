@@ -266,7 +266,7 @@ export function DigestScreen({
         sort={sort}
         onSort={setSort}
       />
-      <Footer source={digest.source} />
+      <Footer />
     </Shell>
   );
 }

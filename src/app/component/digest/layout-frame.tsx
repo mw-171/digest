@@ -2,7 +2,6 @@ import Link from "next/link";
 import * as React from "react";
 
 import { cn } from "@/utils/cn";
-import type { DayDigest } from "@/lib/digest";
 
 /**
  * Page frame. The whole page scrolls — the header stays put by being sticky —
@@ -85,40 +84,31 @@ function Tabs({ active }: { active: FooterTab }) {
 }
 
 /**
- * Where you are, settings, provenance, and the way out. Everything here is
- * nowrap by nature, so a phone takes two rows and one line above `md`;
- * `overflow-x-hidden` keeps a long label from scrolling the whole page sideways.
+ * Where you are, and the way out — one row, on every width. Everything in it
+ * is nowrap by nature, so `overflow-x-hidden` keeps a long label from
+ * scrolling the whole page sideways.
  */
 export function Footer({
-  source,
   toggle,
   active = "digest",
 }: {
-  source?: DayDigest["source"];
   toggle?: React.ReactNode;
   /** Which tab is the page under it. */
   active?: FooterTab;
 }) {
-  const provenance =
-    source === "claude"
-      ? "Triaged by Claude"
-      : source === "heuristic"
-        ? "digest 📬"
-        : "";
-
   return (
     <footer className="safe-bottom mt-auto overflow-x-hidden border-t border-stroke-soft-200">
-      <Column className="flex flex-col gap-1 py-4 text-label-xs text-text-soft-400 md:flex-row md:items-center md:justify-between md:gap-6">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
+      <Column className="flex items-center justify-between gap-4 py-2 text-label-xs text-text-soft-400">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
           <Tabs active={active} />
           {toggle}
         </div>
-        <div className="flex min-w-0 items-center justify-between gap-4 md:justify-end">
-          <span className="min-w-0 truncate">{provenance}</span>
-          <a href="/api/auth/logout" className="shrink-0 underline">
-            Log out
-          </a>
-        </div>
+        <a
+          href="/api/auth/logout"
+          className="flex min-h-11 shrink-0 items-center rounded-lg underline outline-none focus-visible:ring-2 focus-visible:ring-primary-alpha-24"
+        >
+          Log out
+        </a>
       </Column>
     </footer>
   );

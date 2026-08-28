@@ -212,7 +212,7 @@ async function Draft({
   const voice = await voiceForDrafting(account);
   const draft = await draftReply(message, plainText(body.blocks), voice);
 
-  if (draft.source === "none") return <NoDraft unread={!voice.profile.summary} />;
+  if (draft.source === "none") return <NoDraft unread={voice.profile.summary.length === 0} />;
 
   return (
     <section className="mt-7 rounded-2xl border border-stroke-soft-200 p-5 md:p-6">

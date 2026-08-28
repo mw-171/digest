@@ -15,9 +15,9 @@ import type { SentMessage } from "@/lib/gmail";
  */
 const VoiceSchema = z.object({
   summary: z
-    .string()
+    .array(z.string())
     .describe(
-      "How this person writes email, in two or three plain sentences, addressed to them as 'you'. Lead with what is most distinctive. No preamble like 'This writer'.",
+      "Three or four lines on how this person writes email, most distinctive first. One plain sentence each, at most eighteen words, addressed to them as 'you'. Each line stands alone and says a different thing. No preamble like 'This writer' and no trailing periods.",
     ),
   traits: z
     .array(
@@ -83,7 +83,7 @@ export type VoiceProfile = z.infer<typeof VoiceSchema> & {
 };
 
 export const EMPTY_PROFILE: VoiceProfile = {
-  summary: "",
+  summary: [],
   traits: [],
   openings: [],
   signoffs: [],
@@ -95,8 +95,9 @@ export const EMPTY_PROFILE: VoiceProfile = {
 };
 
 const MODEL = "claude-opus-5";
-// Bump when the prompt or the schema changes so old entries are ignored.
-const PROMPT_VERSION = 1;
+// Bump when the prompt or the schema changes so old entries are ignored. It is
+// exported because anything else that keeps a profile has to retire with it.
+export const PROMPT_VERSION = 2;
 
 const SYSTEM = `You read a person's own sent email and describe how they write.
 
@@ -112,6 +113,12 @@ Never flatter and never give advice.
 Copy openings, sign-offs and phrases verbatim, including their capitalisation
 and punctuation. If they write "thanks!" rather than "Thanks!", say so — the
 difference is the whole point. Order them by how often they appear.
+
+The summary is the first thing they read and the only part that is not a
+list of examples, so make each of its lines carry a different observation:
+the shape of their emails, their register, their length, the one habit a
+stranger would notice first. Never repeat what the openings and sign-offs
+already show.
 
 Note what is absent as well as what is there: no greeting, no sign-off, no
 exclamation marks, never a bulleted list. Absences are what most often give a
@@ -195,7 +202,7 @@ export async function analyzeVoice(
 
     const parsed = response.parsed_output;
     const value: z.infer<typeof VoiceSchema> = {
-      summary: parsed.summary.trim(),
+      summary: tidyList(parsed.summary, 4),
       traits: parsed.traits
         .map((trait) => ({
           label: trait.label.trim().replace(/\.$/, ""),

@@ -4,7 +4,12 @@ import { cache } from "react";
 import { readCache, writeCache } from "@/lib/ai-cache";
 import { fetchAccountEmail, fetchSent, SENT_MAX, type SentMessage } from "@/lib/gmail";
 import { authorizedClient } from "@/lib/google";
-import { analyzeVoice, EMPTY_PROFILE, type VoiceProfile } from "@/lib/voice-ai";
+import {
+  analyzeVoice,
+  EMPTY_PROFILE,
+  PROMPT_VERSION,
+  type VoiceProfile,
+} from "@/lib/voice-ai";
 
 /** One correspondent, and how much of the sample went to them. */
 export type Recipient = { name: string; email: string; count: number };
@@ -104,7 +109,7 @@ export type DraftingVoice = {
  * two of them.
  */
 const rememberedFile = (account: string) =>
-  `voice-profile-${createHash("sha1").update(account).digest("hex").slice(0, 16)}.json`;
+  `voice-profile-${PROMPT_VERSION}-${createHash("sha1").update(account).digest("hex").slice(0, 16)}.json`;
 
 /**
  * How you write, ready to write in. The read one when the drafts tab has been
@@ -116,7 +121,7 @@ export const voiceForDrafting = cache(
     const remembered = account
       ? await readCache<DraftingVoice>(rememberedFile(account))
       : null;
-    if (remembered?.profile.summary) return remembered;
+    if (remembered?.profile.summary.length) return remembered;
 
     const voice = await getVoice();
     return { profile: voice.profile, medianWords: voice.stats.medianWords };
