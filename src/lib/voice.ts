@@ -16,8 +16,8 @@ export type VoiceStats = {
   to: string;
   /** The middle length in words. A mean is dragged around by one long email. */
   medianWords: number;
-  /** The share of the sample that answered a thread rather than starting one. */
-  replyShare: number;
+  /** How many of the sample answered a thread rather than starting one. */
+  replies: number;
   topRecipients: Recipient[];
 };
 
@@ -84,7 +84,7 @@ const EMPTY_STATS: VoiceStats = {
   from: "",
   to: "",
   medianWords: 0,
-  replyShare: 0,
+  replies: 0,
   topRecipients: [],
 };
 
@@ -124,8 +124,7 @@ export const getVoice = cache(async (max = SAMPLE_SIZE): Promise<Voice> => {
       from: dates[0].slice(0, 10),
       to: dates[dates.length - 1].slice(0, 10),
       medianWords,
-      replyShare:
-        messages.filter((message) => message.isReply).length / messages.length,
+      replies: messages.filter((message) => message.isReply).length,
       topRecipients: topRecipients(messages),
     },
     profile,

@@ -1,3 +1,5 @@
+"use client";
+
 import { RiArrowDownSLine, RiExternalLinkLine } from "@remixicon/react";
 import Link from "next/link";
 import * as React from "react";
@@ -172,14 +174,39 @@ function Glance({ profile }: { profile: VoiceProfile }) {
   );
 }
 
+/** Breathing room left between the sticky header and the toggle it lands under. */
+const HEADER_GAP = 12;
+
 /**
  * Everything the glance left out, folded away. A native `details` rather than
  * a toggle of our own: it opens without JavaScript, it is a disclosure to a
  * screen reader for free, and nothing about the page depends on its state.
  */
 function More({ children }: { children: React.ReactNode }) {
+  // Opening reveals a screenful below the fold, so the toggle comes up to sit
+  // under the header and the read fills the space beneath it. The header is
+  // sticky and comes in two sizes, so it is measured rather than guessed at.
+  // Closing moves nothing: you are already looking at where it went.
+  const reveal = (event: React.SyntheticEvent<HTMLDetailsElement>) => {
+    const details = event.currentTarget;
+    if (!details.open) return;
+
+    const header = document.querySelector("header");
+    const offset = (header?.getBoundingClientRect().height ?? 0) + HEADER_GAP;
+
+    window.scrollTo({
+      top: window.scrollY + details.getBoundingClientRect().top - offset,
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+    });
+  };
+
+  // No rule of its own: the glance above closes with one, and a second 28px
+  // below it read as a double line around an empty strip. The margin is the
+  // separation the second rule was doing, without drawing anything.
   return (
-    <details className="group mt-7 border-t border-stroke-soft-200">
+    <details onToggle={reveal} className="group mt-4">
       <summary
         className={cn(
           "flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg py-3",
@@ -202,7 +229,7 @@ function More({ children }: { children: React.ReactNode }) {
 
 function Stat({ value, label }: { value: string; label: string }) {
   return (
-    <div className="flex h-[76px] flex-col justify-between rounded-2xl bg-bg-weak-50 p-3 md:h-[84px] md:p-4">
+    <div className="flex min-h-[76px] flex-col justify-between gap-2 rounded-2xl bg-bg-weak-50 p-3 md:min-h-[84px] md:p-4">
       <span className="block text-title-h5 font-semibold tabular-nums leading-none tracking-[-0.04em] text-text-strong-950 md:text-title-h4">
         {value}
       </span>
@@ -221,17 +248,19 @@ const shortDate = (day: string) =>
 
 /** What was read, counted rather than inferred — true even with no API key. */
 function Sample({ stats }: { stats: VoiceStats }) {
+  // "68%" over "Are replies" reads as the sentence it is. The bare noun did
+  // not say which direction the counting went.
   const replies = new Intl.NumberFormat(undefined, {
     style: "percent",
     maximumFractionDigits: 0,
-  }).format(stats.replyShare);
+  }).format(stats.analyzed ? stats.replies / stats.analyzed : 0);
 
   return (
     <>
       <div className="grid grid-cols-3 gap-2 md:gap-3">
         <Stat value={String(stats.analyzed)} label="Emails read" />
-        <Stat value={String(stats.medianWords)} label="Median words" />
-        <Stat value={replies} label="Replies" />
+        <Stat value={String(stats.medianWords)} label="Words an email" />
+        <Stat value={replies} label="Are replies" />
       </div>
       <p className="mt-2.5 text-label-xs text-text-soft-400">
         {stats.from === stats.to

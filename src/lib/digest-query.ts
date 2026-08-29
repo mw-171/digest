@@ -22,7 +22,7 @@ export function timeZone() {
 
 // Bump on any payload shape change: the persisted cache is thrown away rather
 // than rehydrated into a UI that no longer understands it.
-export const CACHE_VERSION = "6";
+export const CACHE_VERSION = "7";
 
 export const CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
 
