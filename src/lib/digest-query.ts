@@ -24,7 +24,17 @@ export function timeZone() {
 // than rehydrated into a UI that no longer understands it.
 export const CACHE_VERSION = "7";
 
-export const CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
+/**
+ * How long a persisted cache is worth restoring, measured from the last time
+ * the app wrote to it. A week, matching the rail: come back to a day you have
+ * already read and it is on screen before the network is asked anything.
+ *
+ * Long is safe here because it is only ever a head start. Every day carries
+ * `staleTime: 0`, so a restored digest is shown and revalidated in the same
+ * breath, and the worst a stale entry costs is the previous snapshot for the
+ * moment before Gmail answers.
+ */
+export const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
 // The zone is part of the key: the same date is a different set of mail in
 // another zone, and a persisted cache can outlive a flight.

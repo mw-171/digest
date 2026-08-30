@@ -5,6 +5,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 
 import { readCache, writeCache } from "@/lib/ai-cache";
+import { logCacheUsage } from "@/lib/ai-usage";
 import type { FullMessage } from "@/lib/gmail";
 
 /**
@@ -98,7 +99,12 @@ export async function summarizeMessage(
       thinking: { type: "adaptive" },
       // One short email, one short answer: low effort keeps the page fast.
       output_config: { effort: "low", format: zodOutputFormat(SummarySchema) },
-      system: SYSTEM,
+      // The rules and the schema come to ~780 tokens, over the 512 Opus 5 needs
+      // before it will cache anything, and they are the same for every message
+      // the reader opens. The email itself sits after the breakpoint.
+      system: [
+        { type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } },
+      ],
       messages: [
         {
           role: "user",
@@ -112,6 +118,8 @@ export async function summarizeMessage(
         },
       ],
     });
+
+    logCacheUsage("summary", response.usage);
 
     if (response.stop_reason === "refusal" || !response.parsed_output) {
       console.warn("Claude did not summarise the message", response.stop_reason);

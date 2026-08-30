@@ -5,6 +5,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 
 import { readCache, writeCache } from "@/lib/ai-cache";
+import { logCacheUsage } from "@/lib/ai-usage";
 import type { FullMessage } from "@/lib/gmail";
 import type { DraftingVoice } from "@/lib/voice";
 
@@ -140,19 +141,37 @@ export async function draftReply(
         {
           role: "user",
           content: [
-            "This is how I write, read from my own sent mail:",
-            JSON.stringify(describe(voice), null, 1),
-            "",
-            "Reply to this email as me:",
-            `From: ${message.from} <${message.fromEmail}>`,
-            `Subject: ${message.subject}`,
-            `Received: ${message.receivedAt}`,
-            "",
-            body,
-          ].join("\n"),
+            // The breakpoint sits here rather than on the email, because this
+            // is the last thing that does not change. System plus voice is
+            // ~1,570 tokens repeated verbatim by every draft written in this
+            // voice; the email underneath is different every time, and a
+            // breakpoint on it would write a fresh entry per call and never
+            // read one back.
+            {
+              type: "text",
+              text: [
+                "This is how I write, read from my own sent mail:",
+                JSON.stringify(describe(voice), null, 1),
+              ].join("\n"),
+              cache_control: { type: "ephemeral" },
+            },
+            {
+              type: "text",
+              text: [
+                "Reply to this email as me:",
+                `From: ${message.from} <${message.fromEmail}>`,
+                `Subject: ${message.subject}`,
+                `Received: ${message.receivedAt}`,
+                "",
+                body,
+              ].join("\n"),
+            },
+          ],
         },
       ],
     });
+
+    logCacheUsage("draft", response.usage);
 
     if (response.stop_reason === "refusal" || !response.parsed_output) {
       console.warn("Claude did not write the draft", response.stop_reason);

@@ -5,6 +5,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 
 import { listCache, readCache, writeCache } from "@/lib/ai-cache";
+import { logCacheUsage } from "@/lib/ai-usage";
 import type { DigestMessage, SignalMessage } from "@/lib/gmail";
 
 /**
@@ -451,7 +452,12 @@ export async function fetchInsights(
         effort: "medium",
         format: zodOutputFormat(InsightSchema),
       },
-      system: SYSTEM,
+      // 1,283 tokens of triage rules, identical on every call and well over the
+      // 512-token minimum Opus 5 will cache. The day's mail below it changes,
+      // so the breakpoint belongs on the end of the rules and nowhere later.
+      system: [
+        { type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } },
+      ],
       messages: [
         {
           role: "user",
@@ -465,6 +471,8 @@ export async function fetchInsights(
         },
       ],
     });
+
+    logCacheUsage("triage", response.usage);
 
     if (response.stop_reason === "refusal" || !response.parsed_output) {
       console.warn("Claude did not return insights", response.stop_reason);
